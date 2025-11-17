@@ -1,4 +1,3 @@
-// src/components/adminPanel/dashboard/AdminSidebarContent.tsx
 "use client";
 
 import React, { useEffect, useTransition } from "react";
@@ -36,20 +35,27 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useNotificationStore } from "@/store/notification.store";
 import { useStoreDetailsStore } from "@/store/storeDetails.store";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useLoadingStore } from "@/store/loading.store";
-
 
 interface AdminSidebarContentProps {
   isCollapsed: boolean;
-  onCollapseToggle: () => void; // Added for the internal toggle button
+  onCollapseToggle: () => void;
 }
 
-export function AdminSidebarContent({ isCollapsed, onCollapseToggle }: AdminSidebarContentProps) {
+export function AdminSidebarContent({
+  isCollapsed,
+  onCollapseToggle,
+}: AdminSidebarContentProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const userId = session?.user?.id;
-  
+
   const [isPending, startTransition] = useTransition();
   const { setLoading } = useLoadingStore();
 
@@ -66,15 +72,6 @@ export function AdminSidebarContent({ isCollapsed, onCollapseToggle }: AdminSide
     }
   }, [userId, fetchUnreadCount]);
 
-  const handleLinkClick = (e: React.MouseEvent) => {
-    e.preventDefault(); 
-    const target = e.currentTarget as HTMLAnchorElement;
-    
-    startTransition(() => {
-      window.location.href = target.href;
-    });
-  };
-
   const navItems = [
     { name: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
     { name: "Manage Cashiers", href: "/admin/manage-cashiers", icon: Users },
@@ -84,11 +81,11 @@ export function AdminSidebarContent({ isCollapsed, onCollapseToggle }: AdminSide
     { name: "Oil Expeller Charges", href: "/admin/oec", icon: Amphora },
     { name: "POS", href: "/admin/pos", icon: BadgeIndianRupee },
     { name: "Invoice", href: "/admin/invoice", icon: ReceiptText },
-    { 
-      name: "Messages", 
-      href: "/admin/messages", 
-      icon: Mail, 
-      badge: unreadCount > 0 ? unreadCount : undefined 
+    {
+      name: "Messages",
+      href: "/admin/messages",
+      icon: Mail,
+      badge: unreadCount > 0 ? unreadCount : undefined,
     },
   ];
 
@@ -100,216 +97,212 @@ export function AdminSidebarContent({ isCollapsed, onCollapseToggle }: AdminSide
 
   const handleLogout = async () => {
     startTransition(async () => {
-        await signOut({ callbackUrl: "/auth" });
+      await signOut({ callbackUrl: "/auth" });
     });
   };
 
   return (
     <TooltipProvider delayDuration={0}>
-      <div
+      <aside
         className={cn(
-          // ✅ FIX: Removed explicit w-20/w-64 classes. Use w-full to fill the width set by the parent layout.
-          "flex flex-col h-full bg-gray-100 dark:bg-gray-900 border-r dark:border-gray-800 transition-all duration-300 ease-in-out w-full"
+          "relative flex flex-col justify-between min-h-screen border-r border-gray-800/60 bg-linear-to-b from-gray-950 via-gray-900 to-gray-950 text-gray-200 transition-all duration-500 ease-in-out shadow-xl",
+          isCollapsed ? "w-20" : "w-64"
         )}
       >
-        {/* === Logo & Toggle Button Section (Now within sidebar) === */}
-        <div
-          className={cn(
-            "flex items-center h-16 border-b dark:border-gray-800 px-4 py-2 relative", // relative for toggle
-            isCollapsed ? "justify-center" : "justify-between"
-          )}
-        >
-            {/* Logo (Reduced Size) */}
+        {/* === Top Section === */}
+        <div className="flex flex-col items-center relative">
+          {/* Toggle Button - Always top-right */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onCollapseToggle}
+            className={cn(
+              "absolute top-4 right-2 h-8 w-8 rounded-full bg-gray-800 hover:bg-primary text-white shadow-md z-10 transition-all duration-300",
+              isCollapsed ? "rotate-180" : ""
+            )}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth="2"
+              stroke="currentColor"
+              className="w-5 h-5"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="m15 18-6-6 6-6" />
+            </svg>
+          </Button>
+
+          {/* Logo */}
+          <div
+            className={cn(
+              "flex items-center justify-center w-full border-b border-gray-800/60 pb-4 pt-14 transition-all duration-300",
+              isCollapsed ? "px-2" : "px-4"
+            )}
+          >
             {activeStore?.logo ? (
-                <div className="animate-shine rounded-lg transition-all duration-300">
-                    <Image 
-                        src={activeStore.logo} 
-                        alt="Store Logo" 
-                        width={isCollapsed ? 32 : 100} // Reduced logo size
-                        height={isCollapsed ? 32 : 32} 
-                        className={cn(
-                        "object-contain transition-all duration-300",
-                        "brightness-125"
-                        )}
-                    />
-                </div>
+              <Image
+                src={activeStore.logo}
+                alt="Store Logo"
+                width={isCollapsed ? 48 : 120}
+                height={48}
+                className="object-contain brightness-125 transition-all duration-500 hover:scale-105"
+              />
             ) : (
-                <Settings className="h-6 w-6 text-primary" /> // Reduced icon size
+              <Settings className="h-8 w-8 text-primary" />
             )}
-
-            {/* Toggle Button (Desktop Only) */}
-            {!isCollapsed && (
-                <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-8 w-8 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-300"
-                    onClick={onCollapseToggle}
-                >
-                    <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="h-4 w-4 transform rotate-180" // Rotated chevron
-                    >
-                        <path d="m15 18-6-6 6-6"/>
-                    </svg>
-                </Button>
-            )}
-            {/* Toggle icon when collapsed (Desktop Only) */}
-            {isCollapsed && (
-                <Tooltip delayDuration={0}>
-                    <TooltipTrigger asChild>
-                        <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="absolute top-1/2 -right-4 transform -translate-y-1/2 h-8 w-8 text-primary bg-gray-500 dark:bg-primary dark:text-primary-foreground border dark:border-gray-700 shadow-lg hover:bg-gray-500 dark:hover:bg-primary/90 transition-all duration-300 z-10 hidden lg:flex"
-                            onClick={onCollapseToggle}
-                        >
-                            <svg
-                                
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                className="h-4 w-4"
-                            >
-                                <path d="m15 18-6-6 6-6"/>
-                            </svg>
-                        </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="right">
-                        Expand Sidebar
-                    </TooltipContent>
-                </Tooltip>
-            )}
+          </div>
         </div>
-        {/* ======================================================= */}
 
-        <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
+        {/* === Navigation Section === */}
+        <nav className="flex-1 w-full overflow-y-auto mt-4 space-y-1 px-2 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-900">
           {navItems.map((item) => {
-            const linkContent = (
+            const isActive = pathname === item.href;
+            const link = (
               <Link
+                key={item.name}
                 href={item.href}
-                onClick={handleLinkClick} 
                 className={cn(
-                  "flex items-center rounded-md px-3 py-2 text-sm font-medium transition-all duration-200 ease-in-out group",
-                  pathname === item.href
-                    ? "bg-primary text-primary-foreground shadow-md" // Added subtle shadow
-                    : "text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700",
+                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 group relative",
+                  isActive
+                    ? "bg-primary text-primary-foreground shadow-lg"
+                    : "hover:bg-gray-800/70 hover:text-white text-gray-400",
                   isCollapsed ? "justify-center" : ""
                 )}
               >
-                <item.icon className={cn("h-5 w-5", isCollapsed ? "" : "mr-3")} />
-                <div className={cn("flex-1 flex justify-between items-center", isCollapsed ? "hidden" : "")}>
-                  <span>{item.name}</span>
-                  {item.badge && (
-                    <span className="bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
-                      {item.badge}
-                    </span>
-                  )}
-                </div>
+                <item.icon className="h-5 w-5 shrink-0" />
+                {!isCollapsed && (
+                  <span className="flex-1 flex justify-between items-center">
+                    {item.name}
+                    {item.badge && (
+                      <span className="bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                        {item.badge}
+                      </span>
+                    )}
+                  </span>
+                )}
               </Link>
             );
 
             return isCollapsed ? (
               <Tooltip key={item.name}>
-                <TooltipTrigger asChild>{linkContent}</TooltipTrigger>
-                <TooltipContent side="right" sideOffset={15}>
-                  {item.name}
-                </TooltipContent>
+                <TooltipTrigger asChild>{link}</TooltipTrigger>
+                <TooltipContent side="right">{item.name}</TooltipContent>
               </Tooltip>
             ) : (
-              <div key={item.name}>{linkContent}</div>
+              link
             );
           })}
 
-          {/* Product Dropdown NavLink */}
+          {/* === Dropdowns === */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
                 className={cn(
-                  "w-full flex items-center rounded-md px-3 py-2 text-sm font-medium transition-all duration-200 ease-in-out group",
-                  "text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700",
+                  "w-full flex items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 group",
+                  "text-gray-400 hover:bg-gray-800/70 hover:text-white",
                   isCollapsed ? "justify-center" : ""
                 )}
               >
-                <Box className={cn("h-5 w-5", isCollapsed ? "mr-0" : "mr-3")} />
-                <span className={cn("flex-1 text-left", isCollapsed ? "hidden" : "")}>Products</span>
+                <Box className="h-5 w-5" />
+                {!isCollapsed && <span className="ml-3">Products</span>}
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-56 z-[99]" side="right" sideOffset={10}>
+            <DropdownMenuContent
+              className="w-56 bg-gray-900 text-gray-200 border-gray-700 shadow-lg"
+              side="right"
+            >
               <DropdownMenuItem asChild>
-                <Link href="/admin/products" onClick={handleLinkClick}><Store className="mr-2 h-4 w-4" />Products</Link>
+                <Link href="/admin/products">
+                  <Store className="mr-2 h-4 w-4" /> Products
+                </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link href="/admin/variants" onClick={handleLinkClick}><TrendingUpDown className="mr-2 h-4 w-4" />Create Variant</Link>
+                <Link href="/admin/variants">
+                  <TrendingUpDown className="mr-2 h-4 w-4" /> Create Variant
+                </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link href="/admin/batch" onClick={handleLinkClick}><Box className="mr-2 h-4 w-4" />Generate Batch</Link>
+                <Link href="/admin/batch">
+                  <Box className="mr-2 h-4 w-4" /> Generate Batch
+                </Link>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* Settings Dropdown NavLink */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-               <button
+              <button
                 className={cn(
-                  "w-full flex items-center rounded-md px-3 py-2 text-sm font-medium transition-all duration-200 ease-in-out group",
-                  "text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700",
+                  "w-full flex items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 group",
+                  "text-gray-400 hover:bg-gray-800/70 hover:text-white",
                   isCollapsed ? "justify-center" : ""
                 )}
               >
-                <Settings className={cn("h-5 w-5", isCollapsed ? "mr-0" : "mr-3")} />
-                <span className={cn("flex-1 text-left", isCollapsed ? "hidden" : "")}>Settings</span>
+                <Settings className="h-5 w-5" />
+                {!isCollapsed && <span className="ml-3">Settings</span>}
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-56 z-[99]" side="right" sideOffset={10}>
-               <DropdownMenuItem asChild>
-                <Link href="/admin/tax" onClick={handleLinkClick}><ReceiptIndianRupee className="mr-2 h-4 w-4" />Tax</Link>
+            <DropdownMenuContent
+              className="w-56 bg-gray-900 text-gray-200 border-gray-700 shadow-lg"
+              side="right"
+            >
+              <DropdownMenuItem asChild>
+                <Link href="/admin/tax">
+                  <ReceiptIndianRupee className="mr-2 h-4 w-4" /> Tax
+                </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link href="/admin/store-settings" onClick={handleLinkClick}><Store className="mr-2 h-4 w-4" />Store Settings</Link>
+                <Link href="/admin/store-settings">
+                  <Store className="mr-2 h-4 w-4" /> Store Settings
+                </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link href="/admin/currency" onClick={handleLinkClick}><UserCircle className="mr-2 h-4 w-4" />Currency Setting</Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/admin/packingProds" onClick={handleLinkClick}><UserCircle className="mr-2 h-4 w-4" />Packing Details</Link>
+                <Link href="/admin/currency">
+                  <UserCircle className="mr-2 h-4 w-4" /> Currency
+                </Link>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </nav>
 
-        {/* === Footer Section === */}
-        <div className={cn("px-2 py-4 border-t dark:border-gray-800", isCollapsed ? "flex flex-col items-center" : "")}>
-          <div className={cn("mb-4 w-full flex", isCollapsed ? "justify-center" : "px-3 py-2")}>
-            <ThemeToggle />
-          </div>
+        {/* === Footer === */}
+        <div
+          className={cn(
+            "border-t border-gray-800/60 px-3 py-4 flex flex-col gap-3 bg-gray-950/80 backdrop-blur-sm",
+            isCollapsed ? "items-center" : ""
+          )}
+        >
+          <ThemeToggle />
           <Button
             variant="ghost"
-            className={cn("w-full flex items-center justify-start rounded-md px-3 py-2", isCollapsed ? "justify-center" : "")}
+            className={cn(
+              "w-full flex items-center justify-start rounded-md px-3 py-2 hover:bg-gray-800/80 transition",
+              isCollapsed ? "justify-center" : ""
+            )}
             onClick={handleLogout}
             disabled={isPending}
           >
             {isPending ? (
-              <Loader2 className={cn("h-4 w-4 animate-spin", isCollapsed ? "" : "mr-3")} />
+              <Loader2
+                className={cn("h-4 w-4 animate-spin", isCollapsed ? "" : "mr-3")}
+              />
             ) : (
-                <Avatar className={cn("h-8 w-8", isCollapsed ? "mr-0" : "mr-3")}>
-                  <AvatarImage src={user.avatar} alt={user.name || ''} />
-                  <AvatarFallback>{user.name ? user.name.charAt(0) : 'A'}</AvatarFallback>
-                </Avatar>
+              <Avatar
+                className={cn("h-8 w-8", isCollapsed ? "mr-0" : "mr-3")}
+              >
+                <AvatarImage src={user.avatar} alt={user.name || ""} />
+                <AvatarFallback>
+                  {user.name ? user.name.charAt(0) : "A"}
+                </AvatarFallback>
+              </Avatar>
             )}
-            <span className={cn(isCollapsed ? "hidden" : "")}>{isPending ? "Signing Out..." : "Logout"}</span>
+            {!isCollapsed && (
+              <span>{isPending ? "Signing Out..." : "Logout"}</span>
+            )}
           </Button>
         </div>
-      </div>
+      </aside>
     </TooltipProvider>
   );
 }

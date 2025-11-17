@@ -1,3 +1,4 @@
+// src/components/adminPanel/memoEvent.tsx
 "use client";
 
 import * as React from "react";
@@ -52,7 +53,7 @@ export function MemoEventDialog({
         <DialogHeader>
           <DialogTitle>Event for {date ? format(date, "PPP") : ""}</DialogTitle>
           <DialogDescription>
-            Add, edit, or delete the event for this day. Click save when you're
+            Add, edit, or delete the event for this day. Click save when **you&apos;re**
             done.
           </DialogDescription>
         </DialogHeader>
@@ -66,7 +67,7 @@ export function MemoEventDialog({
               value={currentEventName}
               onChange={(e) => setCurrentEventName(e.target.value)}
               className="col-span-3"
-              placeholder="e.g., Doctor's Appointment"
+              placeholder="e.g., Doctor&apos;s Appointment"
             />
           </div>
         </div>

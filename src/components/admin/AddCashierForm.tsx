@@ -1,6 +1,6 @@
 // src/components/admin/AddCashierForm.tsx
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react"; // 💡 FIX 1: Removed 'useEffect' from import
 import * as z from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -93,9 +93,10 @@ export function AddCashierForm() {
       toast.success("Cashier added successfully!");
       form.reset(); // Clear the form
       router.push('/admin/manage-cashiers'); // Redirect to manage cashiers page
-    } catch (error: any) {
+    } catch (error) { // 💡 FIX 2: Removed ': any'
+      const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred.";
       console.error("Error adding cashier:", error);
-      toast.error(error.message || "An unexpected error occurred.");
+      toast.error(errorMessage);
     }
   }
 

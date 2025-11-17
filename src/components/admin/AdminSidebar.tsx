@@ -39,7 +39,7 @@ export function AdminSidebar({ isCollapsed, onToggle }: AdminSidebarProps) {
       {/* ===== Desktop Sidebar ===== */}
       <aside
         className={cn(
-          "h-screen hidden lg:block transition-all duration-500 ease-in-out flex-shrink-0 relative overflow-hidden",
+          "h-screen hidden lg:block transition-all duration-500 ease-in-out shrink-0 relative overflow-hidden",
           isCollapsed ? "w-20" : "w-64"
         )}
       >
@@ -47,7 +47,7 @@ export function AdminSidebar({ isCollapsed, onToggle }: AdminSidebarProps) {
         <div
           className={cn(
             "absolute inset-0 z-0",
-            "bg-gradient-to-b from-gray-950 via-gray-900 to-gray-800",
+            "bg-linear-to-b from-gray-950 via-gray-900 to-gray-800",
             "before:absolute before:inset-0 before:bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.08),transparent_60%)]",
             "before:opacity-70"
           )}
@@ -82,7 +82,7 @@ export function AdminSidebar({ isCollapsed, onToggle }: AdminSidebarProps) {
             )}
           >
             {/* ✨ Mobile uses same gradient background */}
-            <div className="absolute inset-0 bg-gradient-to-b from-gray-950 via-gray-900 to-gray-800 backdrop-blur-[6px] border-r border-gray-800/60" />
+            <div className="absolute inset-0 bg-linear-to-b from-gray-950 via-gray-900 to-gray-800 backdrop-blur-[6px] border-r border-gray-800/60" />
             <div className="relative z-10">
               <AdminSidebarContent
                 isCollapsed={false}

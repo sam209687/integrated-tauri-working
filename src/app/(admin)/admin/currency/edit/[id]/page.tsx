@@ -4,16 +4,28 @@ import { Heading } from "@/components/ui/heading";
 import { Separator } from "@/components/ui/separator";
 import CurrencyForm from "@/components/forms/CurrencyForm";
 
-interface EditCurrencyPageProps {
-  params: {
-    id: string;
-  };
+// ✅ Fix: Force dynamic rendering (prevents static serialization of DB data)
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
+
+interface Currency {
+  _id: string;
+  sNo: string;
+  currencyName: string;
+  currencySymbol: string;
 }
 
-const EditCurrencyPage = async ({ params }: EditCurrencyPageProps) => {
+export default async function EditCurrencyPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
   const result = await getCurrencies();
-  const currencies = result.success ? result.data : [];
-  const initialData = currencies.find((c: any) => c._id === params.id) || null;
+
+  const currencies: Currency[] = result.success ? result.data : [];
+  const initialData = currencies.find((c) => c._id === id) || null;
 
   if (!initialData) {
     return <div>Currency not found.</div>;
@@ -26,6 +38,4 @@ const EditCurrencyPage = async ({ params }: EditCurrencyPageProps) => {
       <CurrencyForm initialData={initialData} />
     </div>
   );
-};
-
-export default EditCurrencyPage;
+}

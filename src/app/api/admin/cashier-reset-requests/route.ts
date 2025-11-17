@@ -4,7 +4,9 @@ import { connectToDatabase } from '@/lib/db';
 import { getUserModel } from '@/lib/models/user';
 import { auth } from '@/lib/auth'; // Ensure you import auth for session
 
-export async function GET(req: NextRequest) {
+// 💡 FIX: Use a rule comment to explicitly ignore the unused variable for the required 'request' object.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars 
+export async function GET(_req: NextRequest) {
   try {
     const session = await auth();
     if (!session || session.user?.role !== 'admin') {
@@ -22,8 +24,10 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(resetRequests, { status: 200 });
 
-  } catch (error: any) {
-    console.error('API Error fetching cashier reset requests:', error);
+  } catch (error) { 
+    // Use a type guard to safely access the error message
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error.';
+    console.error('API Error fetching cashier reset requests:', errorMessage);
     return NextResponse.json({ message: 'Internal server error.' }, { status: 500 });
   }
 }

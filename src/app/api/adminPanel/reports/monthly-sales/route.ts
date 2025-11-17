@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import mongoose from "mongoose";
+// 💡 FIX: Removed unused import 'mongoose'
 import Invoice from "@/lib/models/invoice"; // Adjust the path to your Invoice model
 import { connectToDatabase } from "@/lib/db";
 

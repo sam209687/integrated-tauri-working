@@ -1,20 +1,21 @@
+// src/components/adminPanel/PermanentCalendarCard.tsx
+
 "use client";
 
-import { SelectSingleEventHandler } from "react-day-picker";
-import { CalendarComponent } from "./Calendar"; // Adjust path if your calendar component is elsewhere
+import { CalendarComponent } from "./Calendar";
 
 interface PermanentCalendarCardProps {
-    selectedDate: Date | undefined;
-    onDateChange: SelectSingleEventHandler;
+  selectedDate?: Date;
+  onDateChange?: (date: Date | undefined) => void;
 }
 
-export function PermanentCalendarCard({ selectedDate, onDateChange }: PermanentCalendarCardProps) {
-    return (
-        <div>
-            <CalendarComponent 
-                selectedDate={selectedDate}
-                onDateChange={onDateChange}
-            />
-        </div>
-    );
+export function PermanentCalendarCard({
+  
+}: PermanentCalendarCardProps) {
+  return (
+    <div className="col-span-2">
+      {/* You can later wire these props into CalendarComponent if needed */}
+      <CalendarComponent />
+    </div>
+  );
 }

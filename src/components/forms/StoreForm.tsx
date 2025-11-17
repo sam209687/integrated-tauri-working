@@ -1,6 +1,7 @@
+// src/components/forms/StoreForm.tsx
 "use client";
 
-import React, { useState, useTransition, useEffect } from "react";
+import React, { useState, useTransition } from "react"; // 💡 FIX 1: Removed unused 'useEffect'
 import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -91,7 +92,10 @@ export function StoreForm({ initialData }: StoreFormProps) {
       setQrCodeFile(file);
       setQrCodePreview(URL.createObjectURL(file));
       toast.success("Store Details QR Code generated!");
-    } catch (err) {
+    } 
+    // 💡 FIX 2: Add eslint-disable-next-line
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    catch (_) { 
       toast.error("Failed to generate QR Code.");
     }
   };
@@ -110,7 +114,10 @@ export function StoreForm({ initialData }: StoreFormProps) {
       setMediaQRCodeFile(file);
       setMediaQRCodePreview(URL.createObjectURL(file));
       toast.success("Media QR Code generated successfully!");
-    } catch (err) {
+    } 
+    // 💡 FIX 3: Add eslint-disable-next-line
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    catch (_) { 
       toast.error("Failed to generate Media QR Code.");
     }
   };

@@ -1,7 +1,11 @@
 // src/app/(admin)/admin/products/add-product/page.tsx
 import ProductForm from "@/components/forms/ProductForm";
-import {Heading} from "@/components/ui/heading";
-// import ProductForm from "@/components/forms/ProductForm";
+import { Heading } from "@/components/ui/heading";
+
+// ✅ Prevent static pre-render errors (dynamic + disable caching)
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
 
 const AddProductPage = () => {
   return (

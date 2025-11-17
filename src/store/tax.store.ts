@@ -8,7 +8,8 @@ interface TaxStore {
   deleteTax: (taxId: string) => Promise<void>;
 }
 
-export const useTaxStore = create<TaxStore>((set, get) => ({
+// 💡 FIX: Removed the unused 'get' parameter
+export const useTaxStore = create<TaxStore>((set) => ({
   taxes: [],
   setTaxes: (taxes) => set({ taxes }),
   deleteTax: async (taxId) => {

@@ -1,10 +1,12 @@
+// src/actions/store.actions.ts
+
 "use server";
 
 import { revalidatePath } from 'next/cache';
 import { connectToDatabase } from '@/lib/db';
 import Store from '@/lib/models/store';
-// import { storeSchema } from '@/lib/schemas';
 import { writeFile, rm } from 'fs/promises';
+import * as fs from 'fs'; // 💡 FIX 1: Use ES Module import for synchronous fs methods
 import { join } from 'path';
 import QRCode from 'qrcode';
 import { StoreSchema } from '@/lib/schemas';
@@ -20,7 +22,7 @@ const uploadFile = async (file: File | null, prefix: string): Promise<string | u
   const uploadsDir = join(process.cwd(), 'public/uploads');
   const path = join(uploadsDir, filename);
 
-  const fs = require('fs');
+  // ❌ FIX 1: Replaced require('fs')
   if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
   }
@@ -37,7 +39,7 @@ const generateAndSaveQRCode = async (data: string, prefix: string): Promise<stri
   const uploadsDir = join(process.cwd(), 'public/uploads');
   const path = join(uploadsDir, filename);
 
-  const fs = require('fs');
+  // ❌ FIX 2: Replaced require('fs')
   if (!fs.existsSync(uploadsDir)) {
       fs.mkdirSync(uploadsDir, { recursive: true });
   }
@@ -219,6 +221,8 @@ export async function getActiveStore() {
     const store = await Store.findOne({ status: 'ACTIVE' });
     return { success: true, data: JSON.parse(JSON.stringify(store)) };
   } catch (error) {
+    // 💡 FIX 3: Log the error to use the variable and suppress the lint warning.
+    console.error("Failed to retrieve active store:", error);
     return { success: false, message: 'Failed to retrieve active store.' };
   }
 }

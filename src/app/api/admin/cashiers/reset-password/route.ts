@@ -48,8 +48,9 @@ export async function POST(req: NextRequest) {
       { message: `Password reset OTP sent to ${cashier.email}.`, otpSent: true },
       { status: 200 }
     );
-  } catch (error: any) {
-    console.error('Admin cashier reset password API error:', error);
-    return NextResponse.json({ message: error.message || 'Internal server error.' }, { status: 500 });
+  } catch (error) { // 💡 FIX: Removed ': any'
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error.';
+    console.error('Admin cashier reset password API error:', errorMessage);
+    return NextResponse.json({ message: errorMessage || 'Internal server error.' }, { status: 500 });
   }
 }

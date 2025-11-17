@@ -7,7 +7,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "tauri": "tauri"
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "tauri": "tauri",
+    "clean": "rm -rf .next out src-tauri/frontend src-tauri/target && cargo clean --manifest-path src-tauri/Cargo.toml",
+    "build:web": "next build && mkdir -p src-tauri/frontend && cp -r .next/static src-tauri/frontend/static && cp -r public src-tauri/frontend/public && echo '<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><meta http-equiv=\"refresh\" content=\"0;url=/admin/dashboard\" /></head><body></body></html>' > src-tauri/frontend/index.html",
+    "build:tauri": "npm run clean && npm run build:web && tauri build"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.0.1",
@@ -26,6 +31,8 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@tanstack/react-query": "^5.85.0",
     "@tanstack/react-table": "^8.21.3",
+    "@tinyhttp/app": "^3.0.1",
+    "@yudiel/react-qr-scanner": "^2.4.1",
     "argon2": "^0.44.0",
     "axios": "^1.10.0",
     "bcryptjs": "^3.0.2",
@@ -51,6 +58,7 @@
     "recharts": "^3.2.1",
     "resend": "^4.5.1",
     "save-dev": "^0.0.1-security",
+    "serve-static": "^2.2.0",
     "slugify": "^1.6.6",
     "sonner": "^2.0.3",
     "tailwind-merge": "^3.3.0",
@@ -63,8 +71,8 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
-    "@tauri-apps/api": "^2.5.0",
-    "@tauri-apps/cli": "^2.8.4",
+    "@tauri-apps/api": "^2.9.0",
+    "@tauri-apps/cli": "^2.9.4",
     "@types/node": "^20",
     "@types/qrcode": "^1.5.5",
     "@types/react": "^19",

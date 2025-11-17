@@ -1,22 +1,93 @@
-// src/actions/invoice.actions.ts
 "use server";
 
 import { revalidatePath } from "next/cache";
 import Invoice, { IInvoice } from "@/lib/models/invoice";
-import Customer from "@/lib/models/customer";
-import { getUserModel } from "@/lib/models/user";
 import { connectToDatabase } from "@/lib/db";
 import Variant, { IVariant } from "@/lib/models/variant";
 import Product, { IProduct } from "@/lib/models/product";
-import { Types } from "mongoose";
-import { z } from "zod";
 
-// --- NEW CODE: Correctly define the interface for populated variant ---
-interface IVariantWithPopulatedProduct extends Omit<IVariant, "product"> {
-  product: IProduct;
-}
 // --------------------------------------------------------------------------
+// ✅ Standard Action Response
+// --------------------------------------------------------------------------
+interface ActionResponse<T = void> {
+  success: boolean;
+  data?: T;
+  message?: string;
+  error?: string;
+}
 
+// --------------------------------------------------------------------------
+// ✅ Reference Types for Populated Documents
+// --------------------------------------------------------------------------
+export interface ICustomerRef {
+  _id: string;
+  name: string;
+  phone: string; // ✅ made required for consistent typing
+}
+
+export interface IBilledByRef {
+  _id: string;
+  name: string;
+  email?: string;
+}
+
+// ✅ Type for invoices after population
+export type PopulatedInvoice = Omit<IInvoice, "customer" | "billedBy"> & {
+  customer: ICustomerRef;
+  billedBy: IBilledByRef;
+};
+
+// --------------------------------------------------------------------------
+// ✅ Helper Types
+// --------------------------------------------------------------------------
+interface InvoiceItem {
+  variantId: string;
+  name: string;
+  price: number;
+  quantity: number;
+  mrp: number;
+  gstRate: number;
+  hsn?: string;
+}
+
+interface InvoiceLean {
+  invoiceNumber: string;
+  items: InvoiceItem[];
+  createdAt: Date;
+}
+
+interface InvoiceFilter {
+  status: { $ne: string };
+  createdAt?: {
+    $gte?: Date;
+    $lte?: Date;
+  };
+  [key: string]: unknown;
+}
+
+interface IVariantWithPopulatedProduct
+  extends Omit<
+    IVariant,
+    | "product"
+    | "unitConsumed"
+    | "others1"
+    | "others2"
+    | "packingCharges"
+    | "laborCharges"
+    | "electricityCharges"
+  > {
+  product: IProduct;
+  unitConsumed?: number;
+  others1?: number;
+  others2?: number;
+  packingCharges?: number;
+  laborCharges?: number;
+  electricityCharges?: number;
+}
+
+// --------------------------------------------------------------------------
+// ✅ Invoice Creation Payload
+// --------------------------------------------------------------------------
 export type InvoiceDataPayload = {
   customerId: string;
   billedById: string;
@@ -37,6 +108,9 @@ export type InvoiceDataPayload = {
   paymentMethod: "cash" | "upi" | "card";
 };
 
+// --------------------------------------------------------------------------
+// 🧾 Generate Invoice Number
+// --------------------------------------------------------------------------
 async function generateInvoiceNumber(): Promise<string> {
   const now = new Date();
   const year = now.getFullYear();
@@ -53,12 +127,9 @@ async function generateInvoiceNumber(): Promise<string> {
 
   if (lastInvoice && lastInvoice.invoiceNumber) {
     const parts = lastInvoice.invoiceNumber.split("-");
-
     if (parts.length === 5 && parts[0] === "INV" && parts[1] === "RS") {
       const lastSequence = parseInt(parts[2], 10);
-      if (!isNaN(lastSequence)) {
-        nextSequence = lastSequence + 1;
-      }
+      if (!isNaN(lastSequence)) nextSequence = lastSequence + 1;
     }
   }
 
@@ -71,33 +142,31 @@ async function generateInvoiceNumber(): Promise<string> {
 // --------------------------------------------------------------------------
 // 🧾 Create Invoice
 // --------------------------------------------------------------------------
-export async function createInvoice(invoiceData: InvoiceDataPayload) {
+export async function createInvoice(
+  invoiceData: InvoiceDataPayload
+): Promise<ActionResponse<IInvoice>> {
   try {
     await connectToDatabase();
 
     const invoiceNumber = await generateInvoiceNumber();
 
-    // NEW CODE: Normalize items to ensure variantId is a clean string/ObjectId before Mongoose saves it.
-    const normalizedItems = invoiceData.items.map(item => {
-        let variantIdString = item.variantId;
-        
-        // This handles cases where client-side code might accidentally send { $oid: '...' }
-        if (item.variantId && typeof item.variantId === 'object' && '$oid' in item.variantId) {
-             variantIdString = (item.variantId as any).$oid;
-        }
-
-        return {
-            ...item,
-            variantId: variantIdString, 
-        };
+    const normalizedItems = invoiceData.items.map((item) => {
+      let variantIdString = item.variantId;
+      if (
+        item.variantId &&
+        typeof item.variantId === "object" &&
+        "$oid" in item.variantId
+      ) {
+        variantIdString = (item.variantId as { $oid: string }).$oid;
+      }
+      return { ...item, variantId: variantIdString };
     });
-    // END NEW CODE
 
     const newInvoice = new Invoice({
       invoiceNumber,
       customer: invoiceData.customerId,
       billedBy: invoiceData.billedById,
-      items: normalizedItems, // MODIFIED: Use normalized items
+      items: normalizedItems,
       subtotal: invoiceData.subtotal,
       discount: invoiceData.discount,
       packingChargeDiscount: invoiceData.packingChargeDiscount,
@@ -112,40 +181,43 @@ export async function createInvoice(invoiceData: InvoiceDataPayload) {
     revalidatePath("/cashier/invoice");
 
     return { success: true, data: JSON.parse(JSON.stringify(savedInvoice)) };
-  } catch (error: any) {
-    console.error("❌ Create invoice action error:", error);
-    return { success: false, message: error.message };
+  } catch (error) {
+    console.error("❌ Create invoice error:", error);
+    return { success: false, message: "Failed to create invoice." };
   }
 }
 
 // --------------------------------------------------------------------------
-// 🧾 Get All Invoices
+// 🧾 Get All Invoices (✅ FIXED)
 // --------------------------------------------------------------------------
-export async function getInvoices(): Promise<{
-  success: boolean;
-  data?: IInvoice[];
-  message?: string;
-}> {
+export async function getInvoices(): Promise<
+  ActionResponse<PopulatedInvoice[]>
+> {
   try {
     await connectToDatabase();
-    const User = getUserModel();
-    const invoices = await Invoice.find({})
-      .populate({ path: "customer", model: Customer, select: "name phone" })
-      .populate({ path: "billedBy", model: User, select: "name" })
-      .sort({ createdAt: -1 })
-      .lean();
 
-    return { success: true, data: JSON.parse(JSON.stringify(invoices)) };
-  } catch (error: any) {
-    console.error("❌ Fetch invoices error:", error);
-    return { success: false, message: error.message };
+    const invoices = await Invoice.find()
+      .populate<{ customer: ICustomerRef }>("customer", "name phone")
+      .populate<{ billedBy: IBilledByRef }>("billedBy", "name email")
+      .lean<PopulatedInvoice[]>(); // ✅ fully typed lean()
+
+    return { success: true, data: invoices };
+  } catch (error) {
+    console.error("Error fetching invoices:", error);
+    return {
+      success: false,
+      message: "Failed to fetch invoices.",
+      data: [],
+    };
   }
 }
 
 // --------------------------------------------------------------------------
 // 🧾 Cancel Invoice
 // --------------------------------------------------------------------------
-export async function cancelInvoice(invoiceId: string) {
+export async function cancelInvoice(
+  invoiceId: string
+): Promise<ActionResponse<IInvoice>> {
   try {
     await connectToDatabase();
     const updatedInvoice = await Invoice.findByIdAndUpdate(
@@ -155,62 +227,68 @@ export async function cancelInvoice(invoiceId: string) {
     );
 
     if (!updatedInvoice) {
-      throw new Error("Invoice not found.");
+      return { success: false, message: "Invoice not found." };
     }
 
     revalidatePath("/admin/invoice");
     revalidatePath("/cashier/invoice");
 
     return { success: true, data: JSON.parse(JSON.stringify(updatedInvoice)) };
-  } catch (error: any) {
+  } catch (error) {
     console.error("❌ Cancel invoice error:", error);
-    return { success: false, message: error.message };
+    return { success: false, message: "Failed to cancel invoice." };
   }
 }
 
 // --------------------------------------------------------------------------
 // 🧾 Count Invoices by Customer
 // --------------------------------------------------------------------------
-export const getInvoiceCountByCustomer = async (customerId: string) => {
+export async function getInvoiceCountByCustomer(
+  customerId: string
+): Promise<ActionResponse<number>> {
   try {
     await connectToDatabase();
     const count = await Invoice.countDocuments({ customer: customerId });
     return { success: true, data: count };
-  } catch (error: any) {
+  } catch (error) {
     console.error("❌ Failed to fetch invoice count:", error);
     return { success: false, message: "Failed to fetch invoice count." };
   }
-};
+}
 
 // --------------------------------------------------------------------------
-// 💰 FINANCIAL METRICS CALCULATION (NEW FUNCTION)
+// 💰 Financial Metrics Calculation
 // --------------------------------------------------------------------------
-export async function getFinancialMetrics(fromDate?: Date, toDate?: Date) {
+export async function getFinancialMetrics(
+  fromDate?: Date,
+  toDate?: Date
+): Promise<
+  ActionResponse<{
+    totalProfit: number;
+    totalDeposits: number;
+    depositableCharges: {
+      packingCharges: number;
+      laborCharges: number;
+      electricityCharges: number;
+      oecCharges: number;
+    };
+  }>
+> {
   try {
     await connectToDatabase();
 
-    // STEP 1: Build the dynamic filter object
-    const filter: any = { status: { $ne: "cancelled" } };
-
+    const filter: InvoiceFilter = { status: { $ne: "cancelled" } };
     if (fromDate || toDate) {
       filter.createdAt = {};
-      if (fromDate) {
-        filter.createdAt.$gte = fromDate;
-      }
-      if (toDate) {
-        // Use a less than or equal to the end of the day/period
-        filter.createdAt.$lte = toDate; 
-      }
+      if (fromDate) filter.createdAt.$gte = fromDate;
+      if (toDate) filter.createdAt.$lte = toDate;
     }
 
-    // 1. Fetch invoices - **FIXED LINE**
-    // 🛠️ The query now correctly uses the 'filter' object containing the date range.
     const invoices = await Invoice.find(filter)
       .select("invoiceNumber items createdAt")
-      .lean();
+      .lean<InvoiceLean[]>();
 
     let totalProfit = 0;
-    // MODIFICATION: Initialize all charges to zero for accumulation
     const totalDepositableCharges = {
       packingCharges: 0,
       laborCharges: 0,
@@ -218,47 +296,34 @@ export async function getFinancialMetrics(fromDate?: Date, toDate?: Date) {
       oecCharges: 0,
     };
 
-    // 🧮 Calculate Profit and Deposits
     for (const invoice of invoices) {
       for (const item of invoice.items) {
         if (!item.variantId) continue;
 
-        // MODIFICATION: Populate 'product' and select both 'purchasePrice' AND 'sellingPrice'
         const variantData = await Variant.findById(item.variantId)
           .populate<{ product: IProduct }>({
             path: "product",
             model: Product,
-            select: "purchasePrice sellingPrice", // MODIFIED: Include sellingPrice
+            select: "purchasePrice sellingPrice",
           })
           .lean();
 
         const variant = variantData as IVariantWithPopulatedProduct | null;
-
         if (!variant || !variant.product) continue;
 
-        // --- Data retrieval ---
         const purchasePrice = variant.product.purchasePrice || 0;
-        const sellingPrice = variant.product.sellingPrice || 0; // NEW: Retrieve sellingPrice
+        const sellingPrice = variant.product.sellingPrice || 0;
         const unitConsumed = variant.unitConsumed || 0;
         const others2 = variant.others2 || 0;
         const itemQuantity = item.quantity;
-       
-        // 1. Price Difference: selling price - purchase price
-        const priceDifference = sellingPrice - purchasePrice; 
 
-        // 2. Quantity Calculation: priceDifference * unitConsumed
+        const priceDifference = sellingPrice - purchasePrice;
         const quantityCalc = priceDifference * unitConsumed;
+        const itemProfitPerUnit = quantityCalc + others2;
+        const itemProfit = itemProfitPerUnit * itemQuantity;
 
-        // 3. Item Profit Per Unit (The calculated Net Profit per unit consumed)
-        const itemProfitPerUnit = quantityCalc + others2 ;
-        
-        // Total Profit = (Profit Per Unit) * Item Quantity Sold
-        const itemProfit = itemProfitPerUnit ;
-        
         totalProfit += itemProfit;
 
-        // --- Deposit Calculation (Accumulate Charges) ---
-        // NEW CODE: Accumulate total depositable charges based on item quantity
         totalDepositableCharges.packingCharges +=
           (variant.packingCharges || 0) * itemQuantity;
         totalDepositableCharges.laborCharges +=
@@ -267,11 +332,9 @@ export async function getFinancialMetrics(fromDate?: Date, toDate?: Date) {
           (variant.electricityCharges || 0) * itemQuantity;
         totalDepositableCharges.oecCharges +=
           (variant.others1 || 0) * itemQuantity;
-        // END NEW CODE
       }
     }
 
-    // Sum the accumulated charges for the main 'Total Deposits' card
     const totalDeposits = Object.values(totalDepositableCharges).reduce(
       (sum, val) => sum + val,
       0
@@ -282,12 +345,11 @@ export async function getFinancialMetrics(fromDate?: Date, toDate?: Date) {
       data: {
         totalProfit,
         totalDeposits,
-        // The breakdown object is now part of the successful return data
-        depositableCharges: totalDepositableCharges, 
+        depositableCharges: totalDepositableCharges,
       },
     };
-  } catch (error: any) {
+  } catch (error) {
     console.error("❌ [getFinancialMetrics] Error:", error);
-    return { success: false, message: error.message };
+    return { success: false, message: "Failed to calculate financial metrics." };
   }
 }

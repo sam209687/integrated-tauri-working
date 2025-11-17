@@ -15,8 +15,12 @@ export default async function PackingProdsPage() {
 
   return (
     <>
-      <HydratePackingMaterialStore initialMaterials={initialMaterials} />
+     <div className="flex-col">
+      <div className="flex-1 space-y-4 p-8 pt-6">
+         <HydratePackingMaterialStore initialMaterials={initialMaterials} />
       <PackingItemsTable initialMaterials={initialMaterials} />
+      </div>
+     </div>
     </>
   );
 }

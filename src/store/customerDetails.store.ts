@@ -3,8 +3,8 @@ import { create } from 'zustand';
 // 💡 Import the fixed interface from the action file
 import { getLatestCustomersAndCount, DashboardCustomer } from '@/actions/customer.actions'; 
 
-// Use the imported DashboardCustomer interface
-export interface CustomerTableData extends DashboardCustomer {}
+// 💡 FIX: Changed interface to type alias to resolve the empty-object-type error.
+export type CustomerTableData = DashboardCustomer;
 
 interface CustomerDetailsState {
     newCustomers: CustomerTableData[];

@@ -3,7 +3,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { connectToDatabase } from '@/lib/db';
-import Tax, { ITax } from '@/lib/models/tax';
+import Tax from '@/lib/models/tax';
 import { taxSchema } from '@/lib/schemas';
 
 // GET all taxes

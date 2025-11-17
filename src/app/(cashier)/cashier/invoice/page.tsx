@@ -6,20 +6,26 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { PlusCircle } from "lucide-react";
 
-export default async function CashierInvoicePage() {
-  // 1. Fetch the session on the server to check the user's role.
-  const session = await auth();
+// ✅ Prevent Next.js from statically serializing the session or data
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
 
-  // 2. Protect the route to ensure only cashiers can access it.
-  if (!session || session.user.role !== 'cashier') {
-    redirect('/auth');
+export default async function CashierInvoicePage() {
+  // 1️⃣ Authenticate cashier
+  const session = await auth();
+  if (!session || session.user.role !== "cashier") {
+    redirect("/auth");
   }
 
-  // 3. Fetch all invoices using your existing server action.
+  // 2️⃣ Fetch invoices from server
   const result = await getInvoices();
-  const invoices = result.success && Array.isArray(result.data) ? result.data : [];
+  const rawInvoices = result.success && Array.isArray(result.data) ? result.data : [];
 
-  // 4. Render the reusable InvoiceTable component with the fetched data.
+  // 3️⃣ ✅ Deep serialize invoices to plain JSON objects
+  const invoices = JSON.parse(JSON.stringify(rawInvoices));
+
+  // 4️⃣ Render Client Component
   return (
     <div className="p-4 md:p-6 space-y-4">
       <div className="flex items-center justify-between">
@@ -31,6 +37,8 @@ export default async function CashierInvoicePage() {
           </Link>
         </Button>
       </div>
+
+      {/* ✅ Pass only plain JSON objects */}
       <InvoiceTable initialInvoices={invoices} />
     </div>
   );

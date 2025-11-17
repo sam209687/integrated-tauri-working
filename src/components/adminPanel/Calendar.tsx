@@ -4,63 +4,62 @@ import * as React from "react";
 import {
   format,
   parseISO,
+  startOfMonth,
+  endOfMonth,
+  startOfWeek,
+  endOfWeek,
+  eachDayOfInterval,
+  isSameMonth,
+  isSameDay,
   subDays,
+  subMonths,
+  addMonths,
   isWithinInterval,
   startOfDay,
   differenceInCalendarDays,
 } from "date-fns";
-import { RefreshCcw } from "lucide-react";
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { RefreshCcw, ChevronLeft, ChevronRight, Upload } from "lucide-react";
 import { motion } from "framer-motion";
-import { type DayProps } from "react-day-picker";
-
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
 import { getIndianHolidays } from "@/actions/calendar.Actions";
 import { MemoEventDialog } from "./memoEvent";
 
 type Holiday = { name: string; date: string };
-type CustomEvent = { date: string; name: string };
+type CustomEvent = { date: string; name: string; fileUrl?: string };
 
-const CALENDAR_EVENTS_STORAGE_KEY = "calendarCustomEvents_v1";
+const CALENDAR_EVENTS_STORAGE_KEY = "calendarCustomEvents_v3";
 
 export function CalendarComponent() {
-  const [holidays, setHolidays] = useState<Holiday[]>([]);
-  const [customEvents, setCustomEvents] = useState<CustomEvent[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [dialogDate, setDialogDate] = useState<Date | null>(null);
-  const [eventName, setEventName] = useState("");
-  const [isLoaded, setIsLoaded] = useState(false); // ✅ prevents premature overwrite
+  const [holidays, setHolidays] = React.useState<Holiday[]>([]);
+  const [customEvents, setCustomEvents] = React.useState<CustomEvent[]>([]);
+  const [isLoading, setIsLoading] = React.useState(false);
+  const [selectedDate, setSelectedDate] = React.useState<Date>(new Date());
+  const [currentMonth, setCurrentMonth] = React.useState<Date>(new Date());
+  const [isDialogOpen, setIsDialogOpen] = React.useState(false);
+  const [dialogDate, setDialogDate] = React.useState<Date | null>(null);
+  const [eventName, setEventName] = React.useState("");
+  const [isLoaded, setIsLoaded] = React.useState(false);
 
-  // ✅ Fetch holidays from API
-  const fetchHolidays = useCallback(async () => {
+  const fetchHolidays = React.useCallback(async () => {
     setIsLoading(true);
     const holidayData = await getIndianHolidays();
     setHolidays(holidayData);
     setIsLoading(false);
   }, []);
 
-  // ✅ Load events from localStorage once on mount
-  useEffect(() => {
+  React.useEffect(() => {
     fetchHolidays();
-
     try {
       const savedEvents = localStorage.getItem(CALENDAR_EVENTS_STORAGE_KEY);
-      if (savedEvents) {
-        setCustomEvents(JSON.parse(savedEvents));
-      }
+      if (savedEvents) setCustomEvents(JSON.parse(savedEvents));
     } catch (err) {
       console.error("Failed to load events:", err);
     }
-
     setIsLoaded(true);
   }, [fetchHolidays]);
 
-  // ✅ Save to localStorage only after loading existing data
-  useEffect(() => {
+  React.useEffect(() => {
     if (isLoaded) {
       localStorage.setItem(
         CALENDAR_EVENTS_STORAGE_KEY,
@@ -69,19 +68,19 @@ export function CalendarComponent() {
     }
   }, [customEvents, isLoaded]);
 
-  const holidayMap = useMemo(() => {
+  const holidayMap = React.useMemo(() => {
     const map = new Map<string, string>();
     holidays.forEach((h) => map.set(h.date, h.name));
     return map;
   }, [holidays]);
 
-  const customEventMap = useMemo(() => {
+  const customEventMap = React.useMemo(() => {
     const map = new Map<string, string>();
     customEvents.forEach((e) => map.set(e.date, e.name));
     return map;
   }, [customEvents]);
 
-  const displayHolidays = useMemo(() => {
+  const displayHolidays = React.useMemo(() => {
     if (holidays.length === 0) return [];
     const today = startOfDay(new Date());
     const sorted = [...holidays].sort((a, b) => a.date.localeCompare(b.date));
@@ -89,12 +88,14 @@ export function CalendarComponent() {
       const holidayDate = parseISO(holiday.date);
       if (differenceInCalendarDays(holidayDate, today) < 0) return false;
       const displayStartDate = subDays(holidayDate, 5);
-      return isWithinInterval(today, { start: displayStartDate, end: holidayDate });
+      return isWithinInterval(today, {
+        start: displayStartDate,
+        end: holidayDate,
+      });
     });
   }, [holidays]);
 
-  const handleDateSelect = (date: Date | undefined) => {
-    if (!date) return;
+  const handleDateSelect = (date: Date) => {
     setSelectedDate(date);
     setDialogDate(date);
     const dateStr = format(date, "yyyy-MM-dd");
@@ -103,101 +104,159 @@ export function CalendarComponent() {
     setIsDialogOpen(true);
   };
 
-  const DayComponent = ({ day, modifiers, className, ...props }: DayProps) => {
-    const dateStr = format(day.date, "yyyy-MM-dd");
-    const holidayName = holidayMap.get(dateStr);
-    const customEventName = customEventMap.get(dateStr);
-    const tooltipContent = [customEventName, holidayName].filter(Boolean).join(" | ");
+  const handleFileUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    dateStr: string
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-    return (
-      <td
-        {...props}
-        className={cn(className, "p-0", {
-          "cursor-pointer": !modifiers.disabled,
-        })}
-      >
-        <div
-          role="button"
-          tabIndex={0}
-          title={tooltipContent}
-          onClick={() => !modifiers.disabled && handleDateSelect(day.date)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") handleDateSelect(day.date);
-          }}
-          className={cn(
-            "relative h-9 w-full flex items-center justify-center rounded-md font-normal outline-none select-none",
-            !modifiers.disabled &&
-              "hover:bg-accent hover:text-accent-foreground focus:ring-2 focus:ring-ring",
-            modifiers.selected &&
-              "bg-primary text-primary-foreground hover:bg-primary",
-            modifiers.today && "bg-accent text-accent-foreground"
-          )}
-        >
-          <span>{format(day.date, "d")}</span>
-          {holidayName && (
-            <span className="absolute bottom-1.5 right-1.5 w-1.5 h-1.5 bg-yellow-500 rounded-full"></span>
-          )}
-          {customEventName && (
-            <span className="absolute bottom-1.5 left-1.5 w-1.5 h-1.5 bg-green-500 rounded-full"></span>
-          )}
-        </div>
-      </td>
-    );
+    const fileUrl = URL.createObjectURL(file);
+    const existingIndex = customEvents.findIndex((e) => e.date === dateStr);
+
+    if (existingIndex > -1) {
+      const updated = [...customEvents];
+      updated[existingIndex].fileUrl = fileUrl;
+      setCustomEvents(updated);
+    } else {
+      setCustomEvents([
+        ...customEvents,
+        { date: dateStr, name: "Uploaded File", fileUrl },
+      ]);
+    }
   };
+
+  const monthStart = startOfMonth(currentMonth);
+  const monthEnd = endOfMonth(monthStart);
+  const startDate = startOfWeek(monthStart, { weekStartsOn: 0 });
+  const endDate = endOfWeek(monthEnd, { weekStartsOn: 0 });
+  const days = eachDayOfInterval({ start: startDate, end: endDate });
 
   return (
     <>
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="bg-card text-card-foreground border rounded-lg p-4"
+        transition={{ duration: 0.4 }}
+        className="bg-card text-card-foreground border rounded-xl p-6 w-full max-w-4xl mx-auto shadow-md"
       >
-        <div className="flex items-center justify-between mb-2">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-3">
           <div>
-            <h2 className="text-lg font-semibold">
-              Calendar {format(new Date(), "yyyy")}
+            <h2 className="text-base font-semibold">
+              Calendar {format(currentMonth, "yyyy")}
             </h2>
             {displayHolidays.length > 0 && (
-              <p className="text-sm text-yellow-500 animate-pulse">
+              <p className="text-xs text-yellow-500 animate-pulse">
                 Upcoming: {displayHolidays.map((h) => h.name).join(", ")}
               </p>
             )}
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={fetchHolidays}
-            disabled={isLoading}
-          >
-            <RefreshCcw
-              className={cn(
-                "h-4 w-4 text-muted-foreground",
-                isLoading && "animate-spin"
-              )}
-            />
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setCurrentMonth((prev) => subMonths(prev, 1))}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setCurrentMonth((prev) => addMonths(prev, 1))}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={fetchHolidays}
+              disabled={isLoading}
+            >
+              <RefreshCcw
+                className={cn(
+                  "h-4 w-4 text-muted-foreground",
+                  isLoading && "animate-spin"
+                )}
+              />
+            </Button>
+          </div>
         </div>
 
-        <Calendar
-          mode="single"
-          selected={selectedDate}
-          onSelect={handleDateSelect}
-          showOutsideDays={false}
-          className="w-full p-0"
-          components={{ Day: DayComponent }}
-          classNames={{
-            table: "w-full border-collapse table-fixed",
-            head_cell:
-              "text-muted-foreground rounded-md font-normal text-[0.8rem] p-1",
-            cell: "p-0",
-            day: "h-9 w-full p-0",
-            day_selected: "bg-primary text-primary-foreground hover:bg-primary",
-            day_today: "bg-accent text-accent-foreground rounded-md",
-          }}
-        />
+        <p className="text-center text-sm font-medium mb-3">
+          {format(currentMonth, "MMMM yyyy")}
+        </p>
+
+        {/* Weekday headers */}
+        <div className="grid grid-cols-7 text-center text-[13px] font-semibold text-muted-foreground mb-2">
+          {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((day) => (
+            <div key={day}>{day}</div>
+          ))}
+        </div>
+
+        {/* Calendar grid */}
+        <div className="grid grid-cols-7 gap-1 text-sm">
+          {days.map((day) => {
+            const dateStr = format(day, "yyyy-MM-dd");
+            const isCurrentMonth = isSameMonth(day, currentMonth);
+            const isToday = isSameDay(day, new Date());
+            const isSelected = isSameDay(day, selectedDate);
+            const holidayName = holidayMap.get(dateStr);
+            const customEvent = customEvents.find((e) => e.date === dateStr);
+
+            return (
+              <div
+                key={dateStr}
+                className="relative flex flex-col items-center"
+              >
+                <button
+                  title={[customEvent?.name, holidayName]
+                    .filter(Boolean)
+                    .join(" | ")}
+                  onClick={() => handleDateSelect(day)}
+                  className={cn(
+                    "relative flex items-center justify-center h-9 w-9 rounded-lg transition-all duration-150",
+                    isCurrentMonth
+                      ? "text-foreground"
+                      : "text-muted-foreground opacity-50",
+                    isSelected
+                      ? "bg-primary text-primary-foreground scale-105"
+                      : isToday
+                        ? "border border-primary text-primary"
+                        : "hover:bg-accent hover:text-accent-foreground"
+                  )}
+                >
+                  {format(day, "d")}
+                  {holidayName && (
+                    <span className="absolute bottom-0.5 right-0.5 w-1.5 h-1.5 bg-yellow-500 rounded-full" />
+                  )}
+                  {customEvent && (
+                    <span className="absolute bottom-0.5 left-0.5 w-1.5 h-1.5 bg-green-500 rounded-full" />
+                  )}
+                </button>
+
+                {/* File upload button */}
+                {isSameDay(day, selectedDate) && (
+                  <label className="absolute -bottom-5 cursor-pointer">
+                    <input
+                      type="file"
+                      accept="image/*,application/pdf"
+                      className="hidden"
+                      onChange={(e) => handleFileUpload(e, dateStr)}
+                    />
+                    <Upload className="h-3.5 w-3.5 text-muted-foreground hover:text-primary" />
+                  </label>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </motion.div>
 
+      {/* Event dialog */}
       <MemoEventDialog
         isOpen={isDialogOpen}
         onOpenChange={setIsDialogOpen}
@@ -212,7 +271,6 @@ export function CalendarComponent() {
           const existingEventIndex = customEvents.findIndex(
             (e) => e.date === dateStr
           );
-
           if (existingEventIndex > -1) {
             const updated = [...customEvents];
             updated[existingEventIndex].name = newEventName.trim();

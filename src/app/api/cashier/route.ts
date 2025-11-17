@@ -2,7 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 import { getUserModel } from '@/lib/models/user';
-import { Types } from 'mongoose'; // Assuming you might need Types.ObjectId for IDs
+// 💡 FIX 1: Removed unused import 'Types'
+// import { Types } from 'mongoose'; // Assuming you might need Types.ObjectId for IDs
 
 export async function POST(req: NextRequest) {
   try {
@@ -52,16 +53,22 @@ export async function POST(req: NextRequest) {
     delete cashierResponse.passwordResetExpires;
 
     return NextResponse.json({ message: 'Cashier added successfully', cashier: cashierResponse }, { status: 201 });
-  } catch (error: any) {
-    console.error("Error adding cashier:", error);
-    if (error.code === 11000) { // Duplicate key error
+  } catch (error) { // 💡 FIX 2: Removed ': any'
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error';
+    console.error("Error adding cashier:", errorMessage);
+    
+    // Safely check for Mongoose duplicate key error (code 11000)
+    if (error && typeof error === 'object' && 'code' in error && error.code === 11000) { 
         return NextResponse.json({ message: 'A cashier with this email or Aadhaar already exists.' }, { status: 409 });
     }
-    return NextResponse.json({ message: error.message || 'Internal server error' }, { status: 500 });
+    
+    return NextResponse.json({ message: errorMessage || 'Internal server error' }, { status: 500 });
   }
 }
 
-export async function GET(req: NextRequest) {
+// 💡 FIX 3 & 4: Use ESLint comment to ignore unused variable and keep error handling type guard
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function GET(_req: NextRequest) {
   try {
     await connectToDatabase();
     const User = getUserModel();
@@ -70,8 +77,9 @@ export async function GET(req: NextRequest) {
     const cashiers = await User.find({ role: 'cashier' }).select('-password -passwordResetToken -passwordResetExpires'); // Exclude sensitive fields
 
     return NextResponse.json(cashiers, { status: 200 });
-  } catch (error: any) {
-    console.error("Error fetching cashiers:", error);
-    return NextResponse.json({ message: error.message || 'Internal server error' }, { status: 500 });
+  } catch (error) { 
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error';
+    console.error("Error fetching cashiers:", errorMessage);
+    return NextResponse.json({ message: errorMessage || 'Internal server error' }, { status: 500 });
   }
 }

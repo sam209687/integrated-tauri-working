@@ -1,47 +1,54 @@
 "use client";
-import React, { useEffect } from 'react'; // Import useEffect for toast
-import { LoginForm } from './_components/LoginForm';
- import { useSearchParams } from 'next/navigation';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"; // Import Card components
-import { toast } from 'sonner'; 
 
+import React, { useEffect, Suspense } from "react";
+import { LoginForm } from "./_components/LoginForm";
+import { useSearchParams } from "next/navigation";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import { toast } from "sonner";
 
-
-// Make the component async
-export default function AuthPage() { // <--- ADD async HERE
-  // No need for 'await' directly here, as destructuring implicitly handles it
-  // But making the function async tells Next.js it can be async.
+// 👇 Move useSearchParams() into a separate component
+function AuthPageContent() {
   const searchParams = useSearchParams();
-  const error = searchParams.get('error');
+  const error = searchParams.get("error");
 
   let errorMessage: string | undefined;
 
   if (error) {
     switch (error) {
-      case 'OAuthAccountNotLinked':
-        errorMessage = 'This email is already associated with another login method. Please sign in with your original method.';
+      case "OAuthAccountNotLinked":
+        errorMessage =
+          "This email is already associated with another login method. Please sign in with your original method.";
         break;
-      case 'CredentialsSignin':
-        errorMessage = 'Invalid credentials. Please check your username/email and password.';
+      case "CredentialsSignin":
+        errorMessage =
+          "Invalid credentials. Please check your username/email and password.";
         break;
-      case 'Configuration':
-          errorMessage = 'Login service configuration error. Please try again later.';
-          break;
+      case "Configuration":
+        errorMessage =
+          "Login service configuration error. Please try again later.";
+        break;
       default:
-        errorMessage = 'An unknown error occurred during login. Please try again.';
+        errorMessage =
+          "An unknown error occurred during login. Please try again.";
         break;
     }
   }
 
   useEffect(() => {
-        if (errorMessage) {
-            toast.error(errorMessage);
-        }
-    }, [errorMessage]); // Re-run if errorMessage changes
+    if (errorMessage) {
+      toast.error(errorMessage);
+    }
+  }, [errorMessage]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-100 dark:bg-gray-900">
-      <Card className="w-[380px] sm:w-[450px]"> {/* Adjust width for better look */}
+      <Card className="w-[380px] sm:w-[450px]">
         <CardHeader className="space-y-1 text-center">
           <CardTitle className="text-2xl font-bold">Sign In</CardTitle>
           <CardDescription>
@@ -49,10 +56,18 @@ export default function AuthPage() { // <--- ADD async HERE
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {/* Render the LoginForm component here */}
           <LoginForm />
         </CardContent>
       </Card>
-     </div>
-   );
- }
+    </div>
+  );
+}
+
+// ✅ Wrap the content in a Suspense boundary
+export default function AuthPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center">Loading...</div>}>
+      <AuthPageContent />
+    </Suspense>
+  );
+}

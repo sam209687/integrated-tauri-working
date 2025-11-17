@@ -43,8 +43,10 @@ export function ForgotPasswordForm() {
       // Pass email to reset-password page for context, if needed
       router.push(`/auth/reset-password?email=${encodeURIComponent(values.email)}`);
 
-    } catch (error: any) {
-      toast.error(error.message || "An unexpected error occurred.");
+    } catch (error) { // 💡 FIX: Removed ': any'
+      // Use a type guard to safely access the error message
+      const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred.";
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -60,7 +62,3 @@ export function ForgotPasswordForm() {
     />
   );
 }
-
-
-
-

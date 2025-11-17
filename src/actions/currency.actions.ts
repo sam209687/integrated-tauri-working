@@ -37,6 +37,8 @@ export const getCurrencies = async () => {
     const currencies = await Currency.find({}).lean();
     return { success: true, data: JSON.parse(JSON.stringify(currencies)) };
   } catch (error) {
+    // 💡 FIX: Log the error to use the 'error' variable and suppress the warning
+    console.error("Failed to fetch currencies:", error);
     return { success: false, message: "Failed to fetch currencies." };
   }
 };

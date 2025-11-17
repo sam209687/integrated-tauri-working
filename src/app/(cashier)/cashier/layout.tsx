@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from "react";
 import { CashierSidebarContent } from "./_components/CashierSidebarContent";
-import { SidebarToggle } from "@/components/admin/SidebarToggle"; // Reuse same toggle button
 import { QueryProvider } from "@/components/providers/QueryProvider";
 import { PrintPreview } from "@/components/pos/PrintPreview";
 import { useStoreDetailsStore } from "@/store/storeDetails.store";
@@ -87,27 +86,16 @@ export default function CashierLayout({
         )}
 
         {/* ===== Main Content ===== */}
-        <div
+        <main
           className={cn(
-            "min-h-screen transition-all duration-300 ease-in-out flex flex-col",
+            "min-h-screen transition-all duration-300 ease-in-out flex flex-col p-4",
             mainMargin
           )}
         >
-          {/* Persistent Header with SidebarToggle */}
-          <header className="flex items-center h-16 bg-white dark:bg-gray-950 border-b dark:border-gray-800 px-4">
-            <SidebarToggle
-              isCollapsed={isSidebarCollapsed}
-              onToggle={toggleSidebar}
-            />
-          </header>
+          <QueryProvider>{children}</QueryProvider>
+        </main>
 
-          {/* Main Body */}
-          <main className="flex-1 overflow-y-auto p-4">
-            <QueryProvider>{children}</QueryProvider>
-          </main>
-        </div>
-
-        {/* Print Preview */}
+        {/* ===== Print Preview (Always on top) ===== */}
         <PrintPreview />
       </div>
     </AuthGuard>

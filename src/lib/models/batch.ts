@@ -1,7 +1,7 @@
-import mongoose, { Schema, Document, Types } from 'mongoose';
+import { Schema, model, models, Document, Types } from "mongoose";
 
+// ✅ 1. Interface defining the document type
 export interface IBatch extends Document {
-  _id: string;
   product: Types.ObjectId;
   batchNumber: string;
   vendorName: string;
@@ -11,13 +11,15 @@ export interface IBatch extends Document {
   oilCakeProduced?: number;
   oilExpelled?: number;
   createdAt: Date;
+  updatedAt: Date;
 }
 
-const BatchSchema: Schema = new Schema(
+// ✅ 2. Schema definition
+const BatchSchema = new Schema<IBatch>(
   {
     product: {
-      type: Types.ObjectId,
-      ref: 'Product',
+      type: Schema.Types.ObjectId, // ✅ FIX: Use Schema.Types.ObjectId
+      ref: "Product",
       required: [true, "Product is required."],
     },
     batchNumber: {
@@ -41,9 +43,7 @@ const BatchSchema: Schema = new Schema(
       required: [true, "Price is required."],
       min: [0, "Price cannot be negative."],
     },
-    perUnitPrice: {
-      type: Number,
-    },
+    perUnitPrice: { type: Number },
     oilCakeProduced: {
       type: Number,
       min: [0, "Oil cake produced cannot be negative."],
@@ -52,14 +52,9 @@ const BatchSchema: Schema = new Schema(
       type: Number,
       min: [0, "Oil expelled cannot be negative."],
     },
-    createdAt: {
-      type: Date,
-      default: Date.now,
-    },
   },
   { timestamps: true }
 );
 
-const Batch = mongoose.models.Batch || mongoose.model<IBatch>('Batch', BatchSchema);
-
-export default Batch;
+// ✅ 3. Export model properly
+export const Batch = models.Batch || model<IBatch>("Batch", BatchSchema);

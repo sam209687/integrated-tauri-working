@@ -1,1 +1,77 @@
-do this in the add-cahier page add the email as personal-Email and username as email change the schema in user.ts
+now i want to create a offer page component this should follow these rules 
+1.from the drop box  get all the products from the variant db.
+2. In the send row
+ the two checkbox
+(a). Festival offer 
+(b). Regular offer
+
+(a)  if the festival offer is selected
+
+get all the upcoming festival from calendar db in the drop box
+and again in the next row label the offer with the check boxes
+1. hit the counter 2. this festival offer
+
+1. if the hit the counter is selected
+label it 
+Firsttext box 50 customer
+means for fiest 50 customer
+first-label
+50 - text box 
+customer- text 
+
+it will run a function 
+it will count the invoice with the mobile number and customer name
+for the selceted product to 50 customers 
+which customer are purchasing the specified product the 50 invoice will be counted 
+and from that 50 invoice it will randomely pick the invoice for first, second, third prizes 
+
+below this two date fields
+start date - date field 
+end date -date field
+
+below that 
+first prize - text box 
+upload image field
+second prize -same
+third prize - same
+
+
+2. if this festival offer is selected
+enter amount - number field
+start date
+end date
+means if the enter amount is 1000 so will count the all invoice whose amount is => 1000 or whatever the number field amount
+
+prize -label
+text box with placeholder enter the prize name
+upload - upload the image (image field)
+
+
+
+
+(b) if the regular  offer is selected it sahould have the following offers
+1. count the visit of customer
+2.purchase amount of customer
+
+if 
+1. count the visit of customer
+it will count the total visit from invoice db and get the unique mobile numer 
+enter the visit count - number field
+prize name - text field
+upload - image fileld
+
+2.purchase amount of customer
+count the amount from mobile number in invoice db who has purchased again and again to reach the specific amount which is belo mentioned
+enter amount- label box 
+number field 
+
+prize name- text box
+upload - image field
+
+
+so make thew prize and upload field in the src/components/offers/uploadPrize.tsx
+
+no create store action routes and model files for this component as we have made for each component
+if any assistance required ask for reference
+
+

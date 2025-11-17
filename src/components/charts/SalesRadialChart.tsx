@@ -1,7 +1,8 @@
+// ./src/components/charts/SalesRadialChart.tsx
 "use client";
 
 import { RadialBarChart, RadialBar, ResponsiveContainer, Legend } from 'recharts';
-import { Props } from 'recharts/types/component/DefaultLegendContent';
+import { Props } from 'recharts/types/component/DefaultLegendContent'; // Import Props for the legend content
 
 interface ChartProps {
   data: {
@@ -13,17 +14,25 @@ interface ChartProps {
   labelFill: string;
 }
 
-interface LegendPayloadItem {
-  payload: {
-    productName: string;
-    totalSales: number;
-    fill: string;
-  };
+// 💡 FIX 2: Define the type for the payload item inside the Legend
+interface CustomLegendEntry {
+    color: string;
+    value: string;
+    payload: {
+        productName: string;
+        totalSales: number;
+        fill: string;
+    };
 }
 
+// 💡 FIX 1: Removed the unused 'LegendPayloadItem' interface
+
 export function SalesRadialChart({ data, chartBackground, labelFill }: ChartProps) {
+  // Use Props from recharts, but narrow the payload type to our custom structure
   const renderLegend = (props: Props) => {
-    const { payload } = props;
+    // Cast payload safely to an array of our expected type for better type-checking
+    const payload = props.payload as CustomLegendEntry[] | undefined;
+    
     if (!payload || payload.length === 0) return null;
 
     const itemsPerRow = 3;
@@ -36,7 +45,8 @@ export function SalesRadialChart({ data, chartBackground, labelFill }: ChartProp
       <div className="flex flex-col gap-1 mt-2 text-[0.65rem]">
         {rows.map((row, rowIndex) => (
           <ul key={`row-${rowIndex}`} className="flex justify-center gap-x-2">
-            {row.map((entry: any, index: number) => (
+            {/* 💡 FIX 3: Removed 'any' cast and use the CustomLegendEntry type */}
+            {row.map((entry: CustomLegendEntry, index: number) => (
               <li key={`item-${index}`} className="flex items-center space-x-1">
                 <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.payload.fill }}></div>
                 <span className="text-gray-300 font-medium">{entry.payload.productName}</span>
@@ -66,12 +76,11 @@ export function SalesRadialChart({ data, chartBackground, labelFill }: ChartProp
           ))}
         </defs>
         <RadialBar
-          // ✅ FIX: Use an object for the label prop to handle position and style
           label={{ 
             position: 'insideStart', 
             fill: labelFill, 
             fontSize: '10px',
-            fontWeight: '600' // ✅ FIX: Add semi-bold font weight
+            fontWeight: '600'
           }}
           background={{ fill: chartBackground, opacity: 0.5 }}
           dataKey="totalSales"

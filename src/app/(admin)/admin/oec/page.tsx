@@ -4,6 +4,11 @@ import { OecTable } from "@/components/tables/oec-table";
 import { PlusCircle } from "lucide-react";
 import Link from "next/link";
 
+// ✅ Prevent static serialization/build-time evaluation issues
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
+
 export default function OecPage() {
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">

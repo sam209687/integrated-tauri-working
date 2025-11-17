@@ -3,7 +3,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { connectToDatabase } from '@/lib/db';
-import Unit, { IUnit } from '@/lib/models/unit';
+import Unit from '@/lib/models/unit';
 import { unitSchema } from '@/lib/schemas';
 
 // GET all units

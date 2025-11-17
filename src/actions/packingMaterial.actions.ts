@@ -7,7 +7,7 @@ import PackingMaterial, { IPackingMaterial } from "@/lib/models/packingMaterial"
 import { z } from "zod";
 
 // 💡 Ensure Unit model is loaded for population and use in IPopulatedPackingMaterial
-import Unit, { IUnit } from "@/lib/models/unit"; 
+import { IUnit } from "@/lib/models/unit"; 
 
 // ✅ FIX: Assuming your schema is available as 'packingMaterialSchema' from the barrel file
 import { packingMaterialSchema } from "@/lib/schemas/packingMaterialSchema"; 

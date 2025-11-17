@@ -1,7 +1,6 @@
 // src/actions/adminPanel.Actions.ts
 "use server";
 
-import { revalidatePath } from 'next/cache';
 
 export interface ITransaction {
   name: string;

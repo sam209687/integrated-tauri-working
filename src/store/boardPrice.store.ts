@@ -8,8 +8,9 @@ import {
   BoardPriceItem 
 } from '@/actions/product.actions'; 
 
-// State interface for a single product item in the board
-export interface BoardPriceProduct extends BoardPriceItem {}
+// 💡 FIX: Changed interface to type alias to resolve the empty-object-type error.
+// State type for a single product item in the board
+export type BoardPriceProduct = BoardPriceItem;
 
 // Store state interface
 interface BoardPriceState {
@@ -34,7 +35,8 @@ export const useBoardPriceStore = create<BoardPriceState>((set, get) => ({
 
       if (result.success && result.data) {
         set({
-          products: result.data as BoardPriceProduct[],
+          // The BoardPriceItem[] type is now assignable to BoardPriceProduct[]
+          products: result.data as BoardPriceProduct[], 
           totalProducts: result.totalCount,
           isLoading: false,
         });

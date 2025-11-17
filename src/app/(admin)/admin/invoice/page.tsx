@@ -1,16 +1,22 @@
+// src/app/(admin)/admin/invoice/page.tsx
 import { getInvoices } from "@/actions/invoice.actions";
 import { InvoiceTable } from "@/components/invoice/InvoiceTable";
 import { PlusCircle } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
-// This is an async Server Component, which is correct.
-// It should NOT have "use client" at the top.
+// ✅ Force runtime rendering to avoid build serialization issues
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
+
 export default async function AdminInvoicePage() {
   const result = await getInvoices();
-  
-  // Ensure invoices is always an array, even if the fetch fails
-  const invoices = result.success && Array.isArray(result.data) ? result.data : [];
+
+  // ✅ Safely serialize and normalize invoices
+  const invoices = result.success && Array.isArray(result.data)
+    ? JSON.parse(JSON.stringify(result.data))
+    : [];
 
   return (
     <div className="p-4 md:p-6 space-y-4">
@@ -23,7 +29,8 @@ export default async function AdminInvoicePage() {
           </Link>
         </Button>
       </div>
-      {/* It passes the server-fetched data to the "use client" component */}
+
+      {/* ✅ Always provide a serialized, defined array */}
       <InvoiceTable initialInvoices={invoices} />
     </div>
   );

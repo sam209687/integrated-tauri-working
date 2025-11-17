@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useTransition, useEffect } from "react";
+import React, { useEffect, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -8,16 +8,34 @@ import * as z from "zod";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
-import { createProduct, updateProduct, generateProductCodeForUI, ProductData } from "@/actions/product.actions";
+import {
+  createProduct,
+  updateProduct,
+  generateProductCodeForUI,
+  ProductData,
+} from "@/actions/product.actions";
 import { productSchema } from "@/lib/schemas";
 import { useProductStore } from "@/store/product.store";
 
 import { Button } from "@/components/ui/button";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
 
 import { IProduct } from "@/lib/models/product";
 import { IBrand } from "@/lib/models/brand";
@@ -33,71 +51,76 @@ type ProductFormValues = z.infer<typeof productSchema>;
 const ProductForm: React.FC<ProductFormProps> = ({ initialData }) => {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const { categories, brands, taxes, fetchFormData, isLoading } = useProductStore();
+  const [isGeneratingCode, setIsGeneratingCode] = useState(false);
 
+  const { categories, brands, taxes, fetchFormData, isLoading } =
+    useProductStore();
   const isEditing = !!initialData;
-  const numberInputClass = "w-full [appearance:textfield] [&::-webkit-outer-spin-button]:m-0 [&::-webkit-inner-spin-button]:m-0";
+
+  const numberInputClass =
+    "w-full [appearance:textfield] [&::-webkit-outer-spin-button]:m-0 [&::-webkit-inner-spin-button]:m-0";
 
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
     defaultValues: {
-      category: initialData?.category || "",
-      brand: initialData?.brand || "",
+      category:
+        initialData?.category?._id?.toString() ||
+        initialData?.category?.toString() ||
+        "",
+      brand:
+        initialData?.brand?._id?.toString() ||
+        initialData?.brand?.toString() ||
+        "",
       productCode: initialData?.productCode || "",
       productName: initialData?.productName || "",
       description: initialData?.description || "",
-      tax: initialData?.tax || "", 
+      tax:
+        initialData?.tax?._id?.toString() || initialData?.tax?.toString() || "",
       purchasePrice: initialData?.purchasePrice || 0,
       sellingPrice: initialData?.sellingPrice || 0,
-    } as ProductFormValues,
+    },
   });
+
+  const { watch, setValue } = form;
+  const categoryId = watch("category");
 
   useEffect(() => {
     fetchFormData();
   }, [fetchFormData]);
 
   useEffect(() => {
-    const categoryId = form.watch("category");
-    
-    const getAndSetProductCode = async (id: string) => {
+    if (!categoryId || isEditing) return; // Don't regenerate for editing products
+    setIsGeneratingCode(true);
+
+    const generateCode = async () => {
       try {
-        const productCodeResult = await generateProductCodeForUI(id);
-        if (productCodeResult.success) {
-          form.setValue("productCode", productCodeResult.data);
+        const result = await generateProductCodeForUI(categoryId);
+        if (result.success && result.data) {
+          setValue("productCode", result.data);
         } else {
-          toast.error("Failed to generate product code. Please try again.");
-          console.error(productCodeResult.message);
+          toast.error(result.message || "Failed to generate product code.");
         }
-      } catch (error) {
-        toast.error("An unexpected error occurred while generating product code.");
-        console.error("Failed to generate product code:", error);
+      } catch (err) {
+        toast.error("Error generating product code.");
+        console.error(err);
+      } finally {
+        setIsGeneratingCode(false);
       }
     };
 
-    if (categoryId) {
-      getAndSetProductCode(categoryId);
-    } else {
-      form.setValue("productCode", "");
-    }
-  }, [form.watch("category")]);
+    generateCode();
+  }, [categoryId, setValue, isEditing]);
 
-  // ✅ REMOVED: The useEffect for totalPrice calculation is no longer needed.
-  
   const onSubmit = async (values: ProductFormValues) => {
     startTransition(async () => {
-      let result;
-
-      const productData: ProductData = {
+      const payload: ProductData = {
         ...values,
         productCode: values.productCode || "",
-        tax: values.tax || "",
       };
-      
-      if (isEditing && initialData) {
-        result = await updateProduct(initialData._id, productData);
-      } else {
-        result = await createProduct(productData);
-      }
+
+      const result = isEditing
+        ? await updateProduct(initialData!._id, payload)
+        : await createProduct(payload);
 
       if (result.success) {
         toast.success(result.message);
@@ -121,6 +144,7 @@ const ProductForm: React.FC<ProductFormProps> = ({ initialData }) => {
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         {/* Product General Details */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {/* Product Name */}
           <FormField
             control={form.control}
             name="productName"
@@ -128,19 +152,29 @@ const ProductForm: React.FC<ProductFormProps> = ({ initialData }) => {
               <FormItem>
                 <FormLabel>Product Name</FormLabel>
                 <FormControl>
-                  <Input placeholder="e.g., Sunflower Oil" {...field} disabled={isPending} />
+                  <Input
+                    placeholder="e.g., Sunflower Oil"
+                    {...field}
+                    disabled={isPending}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
+
+          {/* Category */}
           <FormField
             control={form.control}
             name="category"
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Category</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isPending}>
+                <Select
+                  onValueChange={field.onChange}
+                  defaultValue={field.value}
+                  disabled={isPending}
+                >
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Select a category" />
@@ -148,7 +182,9 @@ const ProductForm: React.FC<ProductFormProps> = ({ initialData }) => {
                   </FormControl>
                   <SelectContent>
                     {categories.map((cat: ICategory) => (
-                      <SelectItem key={cat._id} value={cat._id}>{cat.name}</SelectItem>
+                      <SelectItem key={cat._id} value={cat._id}>
+                        {cat.name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -156,13 +192,19 @@ const ProductForm: React.FC<ProductFormProps> = ({ initialData }) => {
               </FormItem>
             )}
           />
+
+          {/* Brand */}
           <FormField
             control={form.control}
             name="brand"
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Brand</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isPending}>
+                <Select
+                  onValueChange={field.onChange}
+                  defaultValue={field.value}
+                  disabled={isPending}
+                >
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Select a brand" />
@@ -170,7 +212,9 @@ const ProductForm: React.FC<ProductFormProps> = ({ initialData }) => {
                   </FormControl>
                   <SelectContent>
                     {brands.map((brand: IBrand) => (
-                      <SelectItem key={brand._id} value={brand._id}>{brand.name}</SelectItem>
+                      <SelectItem key={brand._id} value={brand._id}>
+                        {brand.name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -179,7 +223,8 @@ const ProductForm: React.FC<ProductFormProps> = ({ initialData }) => {
             )}
           />
         </div>
-        
+
+        {/* Description & Tax */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField
             control={form.control}
@@ -188,19 +233,28 @@ const ProductForm: React.FC<ProductFormProps> = ({ initialData }) => {
               <FormItem>
                 <FormLabel>Description</FormLabel>
                 <FormControl>
-                  <Textarea placeholder="Describe the product..." {...field} disabled={isPending} />
+                  <Textarea
+                    placeholder="Describe the product..."
+                    {...field}
+                    disabled={isPending}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
-           <FormField
+
+          <FormField
             control={form.control}
             name="tax"
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Tax</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isPending}>
+                <Select
+                  onValueChange={field.onChange}
+                  defaultValue={field.value}
+                  disabled={isPending}
+                >
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Select a tax" />
@@ -208,7 +262,9 @@ const ProductForm: React.FC<ProductFormProps> = ({ initialData }) => {
                   </FormControl>
                   <SelectContent>
                     {taxes.map((tax: ITax) => (
-                      <SelectItem key={tax._id} value={tax._id}>{tax.name}</SelectItem>
+                      <SelectItem key={tax._id} value={tax._id}>
+                        {tax.name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -220,9 +276,10 @@ const ProductForm: React.FC<ProductFormProps> = ({ initialData }) => {
 
         <Separator className="my-4" />
 
-        {/* Inventory & Pricing Fields */}
+        {/* Pricing */}
         <h2 className="text-lg font-semibold mt-6">Inventory & Pricing</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {/* Product Code */}
           <FormField
             control={form.control}
             name="productCode"
@@ -230,12 +287,19 @@ const ProductForm: React.FC<ProductFormProps> = ({ initialData }) => {
               <FormItem>
                 <FormLabel>Product Code</FormLabel>
                 <FormControl>
-                  <Input {...field} disabled={true} />
+                  <div className="relative">
+                    <Input {...field} disabled className="pr-8" />
+                    {isGeneratingCode && (
+                      <Loader2 className="absolute right-2 top-2 h-4 w-4 animate-spin text-gray-400" />
+                    )}
+                  </div>
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
+
+          {/* Purchase Price */}
           <FormField
             control={form.control}
             name="purchasePrice"
@@ -243,29 +307,49 @@ const ProductForm: React.FC<ProductFormProps> = ({ initialData }) => {
               <FormItem>
                 <FormLabel>Purchase Price</FormLabel>
                 <FormControl>
-                  <Input type="number" step="0.01" {...field} disabled={isPending} className={numberInputClass} />
+                  <Input
+                    type="number"
+                    step="0.01"
+                    {...field}
+                    disabled={isPending}
+                    className={numberInputClass}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
+
+          {/* Selling Price */}
           <FormField
             control={form.control}
             name="sellingPrice"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Selling/Board Price</FormLabel>
+                <FormLabel>Selling / Board Price</FormLabel>
                 <FormControl>
-                  <Input type="number" step="0.01" {...field} disabled={isPending} className={numberInputClass} />
+                  <Input
+                    type="number"
+                    step="0.01"
+                    {...field}
+                    disabled={isPending}
+                    className={numberInputClass}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
         </div>
-        
+
+        {/* Action Buttons */}
         <div className="flex justify-end gap-2 mt-8">
-          <Button type="button" variant="outline" onClick={() => router.back()} disabled={isPending}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => router.back()}
+            disabled={isPending}
+          >
             Cancel
           </Button>
           <Button type="submit" disabled={isPending}>

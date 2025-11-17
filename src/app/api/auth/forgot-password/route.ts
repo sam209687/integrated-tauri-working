@@ -51,8 +51,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-  } catch (error: any) {
-    console.error('Forgot password API error:', error);
-    return NextResponse.json({ message: error.message || 'Internal server error.' }, { status: 500 });
+  } catch (error) { // 💡 FIX: Removed ': any'
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error.';
+    console.error('Forgot password API error:', errorMessage);
+    return NextResponse.json({ message: errorMessage || 'Internal server error.' }, { status: 500 });
   }
 }

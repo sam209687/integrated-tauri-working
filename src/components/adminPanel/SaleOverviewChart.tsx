@@ -60,7 +60,7 @@ export function SalesOverviewChart({ data }: SalesOverviewChartProps) {
                   <DialogHeader>
                     <DialogTitle>Sales Overview (Enlarged)</DialogTitle>
                   </DialogHeader>
-                  <div className="w-full h-[500px]">
+                  <div className="w-full h-[650px]">
                     <SalesRadialChart 
                       data={filteredData} 
                       chartBackground={chartTheme.chartBackground} 

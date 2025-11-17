@@ -3,7 +3,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { connectToDatabase } from '@/lib/db';
-import Oec, { IOec } from '@/lib/models/oec';
+import Oec from '@/lib/models/oec';
 import Product from '@/lib/models/product';
 import { oecSchema } from '@/lib/schemas';
 import { z } from 'zod';

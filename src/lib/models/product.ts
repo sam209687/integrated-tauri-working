@@ -9,6 +9,8 @@ import './unit';
 import './tax';
 import './variant';
 
+// ... (IProduct and IPopulatedProduct interfaces remain the same)
+
 export interface IProduct extends Document {
   _id : string;
   category: Types.ObjectId;
@@ -50,8 +52,14 @@ ProductSchema.pre('findOneAndDelete', async function (next) {
       await Variant.deleteMany({ product: product._id });
     }
     next();
-  } catch (error: any) {
-    next(error);
+  } catch (error: unknown) {
+    // 💡 FIX: Use a type guard to ensure the object passed to next() is an Error.
+    if (error instanceof Error) {
+      next(error);
+    } else {
+      // If it's not a standard Error object (e.g., a string or plain object), wrap it.
+      next(new Error(`An unknown error occurred during product deletion hook: ${error}`));
+    }
   }
 });
 

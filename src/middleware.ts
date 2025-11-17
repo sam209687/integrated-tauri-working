@@ -1,9 +1,12 @@
 // ./middleware.ts
-import { auth as middleware } from "./lib/auth";
 
-// ✅ FIX: Temporarily disable the middleware by commenting out the config object.
+// ❌ OLD: import { auth as middleware } from "./lib/auth"; // Imports Mongoose
+// ✅ NEW: Import the Edge-safe handler
+import { middlewareAuth } from "./lib/auth.middleware";
+
 export const config = {
   matcher: ["/admin/:path*", "/cashier/:path*"],
 };
 
-export { middleware };
+// Use the renamed export here
+export { middlewareAuth as middleware };

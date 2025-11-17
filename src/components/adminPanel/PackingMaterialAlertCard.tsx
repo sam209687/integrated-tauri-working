@@ -78,7 +78,7 @@ export function PackingMaterialAlertCard() {
             {lowStockMaterials.slice(0, 5).map(material => (
                 <li key={material._id.toString()} className="flex justify-between items-center text-red-300">
                     <span className="truncate">{material.name}</span>
-                    <span className="font-semibold text-right flex-shrink-0">
+                    <span className="font-semibold text-right shrink-0">
                         Stock: {material.balance}
                     </span>
                 </li>

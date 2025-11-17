@@ -2,10 +2,10 @@
 
 import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
-import Batch from "@/lib/models/batch";
-import { z } from "zod";
+// import Batch from "@/lib/models/batch";
 import { batchSchema } from "@/lib/schemas";
 import mongoose from "mongoose";
+import { Batch } from "@/lib/models/batch";
 
 // Handle GET request to fetch all batches
 export async function GET() {

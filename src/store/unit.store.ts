@@ -8,7 +8,8 @@ interface UnitStore {
   deleteUnit: (unitId: string) => Promise<void>;
 }
 
-export const useUnitStore = create<UnitStore>((set, get) => ({
+// 💡 FIX: Removed the unused 'get' parameter
+export const useUnitStore = create<UnitStore>((set) => ({
   units: [],
   setUnits: (units) => set({ units }),
   deleteUnit: async (unitId) => {

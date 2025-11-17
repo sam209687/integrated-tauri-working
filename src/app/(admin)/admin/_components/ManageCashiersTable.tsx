@@ -35,8 +35,9 @@ export function ManageCashiersTable() {
       } else {
         throw new Error(data.message || "Failed to fetch cashiers.");
       }
-    } catch (error: any) {
-      toast.error(error.message || "Error fetching cashiers.");
+    } catch (error) { // 💡 FIX 1: Removed ': any'
+      const errorMessage = error instanceof Error ? error.message : "Error fetching cashiers.";
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -59,8 +60,9 @@ export function ManageCashiersTable() {
         } else {
           throw new Error(data.message || "Failed to delete cashier.");
         }
-      } catch (error: any) {
-        toast.error(error.message || "Error deleting cashier.");
+      } catch (error) { // 💡 FIX 2: Removed ': any'
+        const errorMessage = error instanceof Error ? error.message : "Error deleting cashier.";
+        toast.error(errorMessage);
       }
     }
   };
@@ -80,8 +82,9 @@ export function ManageCashiersTable() {
       } else {
         throw new Error(data.message || "Failed to initiate password reset.");
       }
-    } catch (error: any) {
-      toast.error(error.message || "Error initiating password reset.");
+    } catch (error) { // 💡 FIX 3: Removed ': any'
+      const errorMessage = error instanceof Error ? error.message : "Error initiating password reset.";
+      toast.error(errorMessage);
     }
   };
 

@@ -8,7 +8,10 @@ export async function GET() {
     await connectToDatabase();
     const taxes = await Tax.find({});
     return NextResponse.json(taxes);
-  } catch (error) {
+  } 
+  // 💡 FIX: Use ESLint disable comment to ignore unused variable
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  catch (_error) {
     return NextResponse.json({ message: 'Error fetching taxes' }, { status: 500 });
   }
 }

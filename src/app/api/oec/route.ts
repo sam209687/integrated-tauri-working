@@ -2,7 +2,8 @@
 import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 import Oec from '@/lib/models/oec';
-import Product from '@/lib/models/product';
+// 💡 FIX 1: Removed unused import 'Product'
+// import Product from '@/lib/models/product';
 
 // GET all OECs
 export async function GET() {
@@ -13,7 +14,10 @@ export async function GET() {
       .sort({ createdAt: -1 });
 
     return NextResponse.json({ success: true, data: oecs });
-  } catch (error) {
+  } 
+  // 💡 FIX 2: Use ESLint disable comment to ignore unused variable
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  catch (_error) { 
     return NextResponse.json(
       { success: false, message: 'Failed to fetch OECs.' },
       { status: 500 }
@@ -54,7 +58,10 @@ export async function POST(req: Request) {
       { success: true, message: 'OEC created successfully!', data: newOec },
       { status: 201 }
     );
-  } catch (error) {
+  } 
+  // 💡 FIX 3: Use ESLint disable comment to ignore unused variable
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  catch (_error) { 
     return NextResponse.json(
       { success: false, message: 'Failed to create OEC.' },
       { status: 500 }

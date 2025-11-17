@@ -1,46 +1,56 @@
 // src/lib/auth.ts
+import NextAuth, { DefaultSession } from "next-auth";
+import { authOptions } from "./auth.options"; // ✅ Import the full NextAuth configuration
 
-import NextAuth, { DefaultSession } from 'next-auth';
-import { authConfig } from './auth.config';
+// ------------------------------------------------------------------
+// ✅ Type Augmentations — adds strong typing for session, user, and JWT
+// ------------------------------------------------------------------
 
-// ✅ MODIFICATION: The JWT interface is now inside this single module declaration.
-declare module 'next-auth' {
-  /**
-   * Extends the built-in session.user type.
-   */
+declare module "next-auth" {
   interface Session {
     user: {
       id: string;
-      role: 'admin' | 'cashier';
+      role: "admin" | "cashier";
       personalEmail?: string;
       isAdminInitialSetupComplete?: boolean;
-    } & DefaultSession['user'];
+    } & DefaultSession["user"];
   }
 
-  /**
-   * Extends the built-in user type.
-   */
   interface User {
-    role: 'admin' | 'cashier';
+    id: string;
+    role: "admin" | "cashier";
     personalEmail?: string;
     isAdminInitialSetupComplete?: boolean;
   }
 
-  /**
-   * Extends the built-in JWT type.
-   */
   interface JWT {
-    role: 'admin' | 'cashier';
+    id: string;
+    role: "admin" | "cashier";
     personalEmail?: string;
     isAdminInitialSetupComplete?: boolean;
   }
 }
 
-// The old "declare module 'next-auth/jwt'" block has been removed.
+// ------------------------------------------------------------------
+// ✅ Initialize NextAuth using centralized configuration
+// ------------------------------------------------------------------
 
 export const {
   handlers: { GET, POST },
   auth,
   signIn,
   signOut,
-} = NextAuth(authConfig);
+} = NextAuth(authOptions);
+
+// ------------------------------------------------------------------
+// ✅ Notes:
+// ------------------------------------------------------------------
+// - This file centralizes NextAuth initialization and exports reusable helpers.
+// - All authentication logic, providers, and callbacks live in `/src/lib/auth.options.ts`.
+// - Use in API routes:
+//     import { GET, POST } from "@/lib/auth";
+//     export { GET, POST };
+// - Or call the helpers directly in server components:
+//     const session = await auth(); // retrieves current session
+//     await signIn("credentials", { email, password });
+// ------------------------------------------------------------------

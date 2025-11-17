@@ -77,9 +77,11 @@ export function ResetPasswordForm() {
 
       toast.success(data.message);
       router.push("/auth");
-    } catch (error: any) {
+    } catch (error) { // 💡 FIX: Removed ': any'
+      // Use a type guard to safely access the error message
+      const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred.";
       console.error("Frontend caught error:", error); // Log frontend errors
-      toast.error(error.message || "An unexpected error occurred.");
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }

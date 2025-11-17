@@ -3,6 +3,16 @@ import { Resend } from 'resend';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
+// 💡 FIX: Removed the incorrect import of 'resend/build/src/errors'.
+
+// Define a type that potentially includes undocumented Resend error properties
+// This type is kept to avoid the 'no-explicit-any' error for accessing 'statusCode'.
+interface ResendExtendedError extends Error {
+  statusCode?: number;
+  message: string;
+  name: string;
+}
+
 export async function sendOTP(toEmail: string, otp: string, subject: string = "Your OTP") {
   try {
     // Log the API key to confirm it's loaded (for debugging only, remove in production)
@@ -25,14 +35,13 @@ export async function sendOTP(toEmail: string, otp: string, subject: string = "Y
       console.error("Name:", error.name);
       console.error("Message:", error.message);
 
-      // Cast to 'any' for direct property access, only for debugging.
-      // In production, rely on documented properties or specific error types.
-      const resendErrorAny = error as any; 
-      if (resendErrorAny.statusCode) {
-        console.error("Status Code:", resendErrorAny.statusCode);
+      // Cast to the defined interface (ResendExtendedError) instead of 'any'
+      // Note: The 'error' object from the Resend SDK should already conform to Error and be safe to cast to our extended type.
+      const resendError = error as ResendExtendedError; 
+      if (resendError.statusCode) {
+        console.error("Status Code:", resendError.statusCode);
       } else {
         console.warn("statusCode property not found on Resend error object directly.");
-        // Log the entire error object for deeper inspection if statusCode is crucial
         // console.error("Full error object:", error);
       }
       
@@ -41,8 +50,16 @@ export async function sendOTP(toEmail: string, otp: string, subject: string = "Y
     }
     console.log("OTP email sent successfully:", data);
     return data;
-  } catch (error: any) { // Keep `any` for the catch block if you're not strictly typing all possible errors
-    console.error("Unhandled error in sendOTP:", error.message || error);
-    throw error;
+  } catch (error: unknown) {
+    let errorMessage = "An unknown error occurred.";
+    if (error instanceof Error) {
+        errorMessage = error.message;
+    } else if (typeof error === 'object' && error !== null && 'message' in error) {
+        // Fallback for non-standard error objects
+        errorMessage = (error as { message: string }).message;
+    }
+    
+    console.error("Unhandled error in sendOTP:", errorMessage);
+    throw new Error(errorMessage); 
   }
 };

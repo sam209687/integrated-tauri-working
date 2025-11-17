@@ -1,9 +1,10 @@
-// src/app/api/admin/cashiers/reset-password/routeModule.ts
+// src/app/api/admin/cashiers/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
-import { getUserModel, IUser } from '@/lib/models/user';
-import argon2 from 'argon2'; // Changed from bcryptjs
+// 💡 FIX 1: Removed unused import 'IUser'
+import { getUserModel } from '@/lib/models/user'; 
+import argon2 from 'argon2'; 
 import { auth } from '@/lib/auth';
 
 // Helper to check admin role
@@ -54,13 +55,16 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({ message: 'Cashier account created successfully!', cashier: newCashier }, { status: 201 });
-  } catch (error: any) {
-    console.error('Create cashier API error:', error);
-    return NextResponse.json({ message: error.message || 'Internal server error.' }, { status: 500 });
+  } catch (error) { // 💡 FIX 2: Removed ': any'
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error.';
+    console.error('Create cashier API error:', errorMessage);
+    return NextResponse.json({ message: errorMessage || 'Internal server error.' }, { status: 500 });
   }
 }
 
-export async function GET(req: NextRequest) {
+// 💡 FIX 3: Use ESLint disable comment to ignore unused variable
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function GET(_req: NextRequest) {
   const authError = await checkAdminAuth();
   if (authError) return authError;
 
@@ -70,9 +74,10 @@ export async function GET(req: NextRequest) {
     const cashiers = await User.find({ role: 'cashier' }).select('-password -passwordResetToken -passwordResetExpires'); // Exclude sensitive fields
 
     return NextResponse.json({ cashiers }, { status: 200 });
-  } catch (error: any) {
-    console.error('Get cashiers API error:', error);
-    return NextResponse.json({ message: error.message || 'Internal server error.' }, { status: 500 });
+  } catch (error) { // 💡 FIX 4: Removed ': any'
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error.';
+    console.error('Get cashiers API error:', errorMessage);
+    return NextResponse.json({ message: errorMessage || 'Internal server error.' }, { status: 500 });
   }
 }
 
@@ -97,8 +102,9 @@ export async function DELETE(req: NextRequest) {
     }
 
     return NextResponse.json({ message: 'Cashier deleted successfully!' }, { status: 200 });
-  } catch (error: any) {
-    console.error('Delete cashier API error:', error);
-    return NextResponse.json({ message: error.message || 'Internal server error.' }, { status: 500 });
+  } catch (error) { // 💡 FIX 5: Removed ': any'
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error.';
+    console.error('Delete cashier API error:', errorMessage);
+    return NextResponse.json({ message: errorMessage || 'Internal server error.' }, { status: 500 });
   }
 }

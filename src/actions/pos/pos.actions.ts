@@ -1,3 +1,5 @@
+// src/actions/pos/pos.actions.ts
+
 "use server";
 
 import { connectToDatabase } from "@/lib/db";
@@ -13,7 +15,8 @@ import "@/lib/models/category";
 import "@/lib/models/unit";
 import "@/lib/models/tax"; // ✅ NEW: Register Tax model
 
-export interface IPosVariant extends IPopulatedVariant {}
+// 💡 FIX: Replace the redundant interface with a type alias.
+export type IPosVariant = IPopulatedVariant;
 
 interface GetVariantsResult {
   success: boolean;

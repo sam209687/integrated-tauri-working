@@ -11,7 +11,10 @@ export async function GET() {
     await connectToDatabase();
     const currencies = await Currency.find({}).sort({ sNo: 'asc' });
     return NextResponse.json({ success: true, data: currencies });
-  } catch (error) {
+  } 
+  // 💡 FIX 1: Use ESLint disable comment to ignore unused variable
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  catch (_error) {
     return NextResponse.json({ success: false, message: 'Failed to fetch currencies.' }, { status: 500 });
   }
 }
@@ -30,7 +33,10 @@ export async function POST(req: Request) {
     const newCurrency = new Currency(validation.data);
     await newCurrency.save();
     return NextResponse.json({ success: true, message: 'Currency added successfully!', data: newCurrency }, { status: 201 });
-  } catch (error) {
+  } 
+  // 💡 FIX 2: Use ESLint disable comment to ignore unused variable
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  catch (_error) {
     return NextResponse.json({ success: false, message: 'Failed to add currency.' }, { status: 500 });
   }
 }

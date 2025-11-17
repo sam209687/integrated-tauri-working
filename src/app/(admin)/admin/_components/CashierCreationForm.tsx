@@ -52,14 +52,20 @@ export function CashierCreationForm() {
       const data = await response.json();
 
       if (!response.ok) {
+        // Assuming data.message contains the error message from the API
         throw new Error(data.message || "Failed to create cashier.");
       }
 
       toast.success(data.message);
       form.reset();
       router.push("/admin/manage-cashiers");
-    } catch (error: any) {
-      toast.error(error.message || "An unexpected error occurred.");
+    } catch (error) { // 💡 FIX: Removed ': any'
+      // 💡 FIX: Safely access error.message using a type guard
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : "An unexpected error occurred.";
+      
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }

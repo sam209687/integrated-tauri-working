@@ -1,7 +1,7 @@
 // src/components/adminPanel/BoardPriceCard.tsx
 "use client";
 
-import { useState, useRef, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react'; // 💡 FIX 1: Removed 'useRef'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -40,10 +40,13 @@ const EditablePriceRow = ({ product }: { product: BoardPriceProduct }) => {
 
     // Effect to update the local state when the global store updates (e.g., after successful save or refresh)
     useEffect(() => {
+        // This check implicitly relies on currentPrice's value, which is derived from the input field
+        // If the goal is only to update the local state when the global state (product.sellingPrice) changes
+        // and the local state (currentPrice) is currently out of sync (i.e., the user hasn't made a change)
         if (parseFloat(currentPrice) !== product.sellingPrice) {
              setCurrentPrice(product.sellingPrice.toFixed(2));
         }
-    }, [product.sellingPrice]);
+    }, [product.sellingPrice, currentPrice]); // 💡 FIX 2: Added 'currentPrice' to dependency array
 
 
     const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -152,7 +155,7 @@ export function BoardPriceCard({ data, totalCount, isLoading, error }: BoardPric
             </p>
           </div>
         </CardHeader>
-        <CardContent className="h-full overflow-y-auto flex-grow max-h-[350px] p-0"> 
+        <CardContent className="h-full overflow-y-auto grow max-h-[350px] p-0"> 
           <Table>
             <TableHeader>
               <TableRow className="border-gray-700 bg-gray-800 sticky top-0 z-10">

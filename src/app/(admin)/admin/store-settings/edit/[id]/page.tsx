@@ -1,19 +1,25 @@
-// src/app/(admin)/admin/store-settings/edit/[id]/page.tsx
 import { Heading } from "@/components/ui/heading";
 import { Separator } from "@/components/ui/separator";
 import { getStores } from "@/actions/store.actions";
 import { StoreForm } from "@/components/forms/StoreForm";
+import { IStore } from "@/lib/models/store";
 
-interface EditStorePageProps {
-  params: {
-    id: string;
-  };
-}
+// ✅ Force dynamic rendering to prevent build-time serialization issues
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
 
-const EditStorePage = async ({ params }: EditStorePageProps) => {
+export default async function EditStorePage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params; // ✅ Must await in Next.js 15
+
   const result = await getStores();
-  const stores = result.success ? result.data : [];
-  const initialData = stores.find((store: any) => store._id === params.id) || null;
+
+  const stores: IStore[] = result.success ? (result.data as IStore[]) : [];
+  const initialData = stores.find((store) => store._id === id) || null;
 
   if (!initialData) {
     return <div>Store not found.</div>;
@@ -26,6 +32,4 @@ const EditStorePage = async ({ params }: EditStorePageProps) => {
       <StoreForm initialData={initialData} />
     </div>
   );
-};
-
-export default EditStorePage;
+}

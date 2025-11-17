@@ -1,6 +1,6 @@
+// src/app/api/brand/route.ts
 import { NextResponse } from 'next/server';
-import  Brand  from '@/lib/models/brand';
-
+import Brand from '@/lib/models/brand';
 import { uploadImage } from '@/lib/imageUpload';
 import { connectToDatabase } from '@/lib/db';
 import { ObjectId } from 'mongodb';
@@ -11,7 +11,10 @@ export async function GET() {
     await connectToDatabase();
     const brands = await Brand.find({});
     return NextResponse.json(brands);
-  } catch (error) {
+  } 
+  // 💡 FIX: Use ESLint disable comment to ignore unused variable
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  catch (_error) { 
     return NextResponse.json({ message: 'Error fetching brands' }, { status: 500 });
   }
 }
@@ -32,7 +35,7 @@ export async function POST(request: Request) {
     
     // Use a valid, hardcoded ObjectId for now.
     // In a real app, this would come from the authenticated user's session.
-    const storeId = new ObjectId('65507b51e4431e67c87c2b64'); // <-- This will now work
+    const storeId = new ObjectId('65507b51e4431e67c87c2b64'); 
 
     const newBrand = await Brand.create({
       name,
@@ -41,7 +44,7 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json(newBrand, { status: 201 });
-  } catch (error) {
+  } catch (error) { // ⚠️ NOTE: This block uses 'error' in console.error, so it's not unused.
     console.error('Error creating brand:', error);
     return NextResponse.json({ message: 'Error creating brand' }, { status: 500 });
   }

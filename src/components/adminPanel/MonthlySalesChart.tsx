@@ -5,36 +5,34 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recha
 import type { TooltipProps } from "recharts";
 import { motion } from "framer-motion";
 
-// 1. New Data Structure Interface
 interface MonthlySalesData {
   month: string;
-  totalInvoice: number; // Total number of invoices
-  salesAmount: number; // Sum of the total sold amount
+  totalInvoice: number;
+  salesAmount: number;
 }
 
 interface MonthlySalesChartProps {
   data: MonthlySalesData[];
 }
 
-// 💡 FIX: Manually define the required props for the CustomTooltip
-// We use Omit to clean up the imported TooltipProps and manually add the required properties
-// This solves the 'Property does not exist' error.
+interface PayloadItem {
+  name: string;
+  value: number;
+  payload: MonthlySalesData;
+}
+
 type CustomTooltipProps = Omit<
-  TooltipProps<any, any>,
+  TooltipProps<number, string>,
   "payload" | "label" | "active"
 > & {
   active?: boolean;
-  payload?: any[];
+  payload?: PayloadItem[];
   label?: string | number;
 };
 
-// 2. Custom Tooltip Component
 const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
-  // The check remains the same
   if (active && payload && payload.length) {
-    // Access the data object from the payload.
-    const dataPoint = payload[0].payload as MonthlySalesData;
-
+    const dataPoint = payload[0].payload;
     return (
       <div className="p-3 bg-gray-800 border border-gray-700 text-white shadow-lg rounded-md">
         <p className="font-bold text-lg mb-1">{`${label} Sales`}</p>
@@ -62,13 +60,15 @@ export function MonthlySalesChart({ data }: MonthlySalesChartProps) {
       transition={{ duration: 0.5, delay: 0.4 }}
       className="w-full"
     >
-      <Card className="bg-gray-900 text-white border-gray-700 shadow-lg">
-        <CardHeader>
+      <Card className="bg-gray-900 text-white border-gray-700 shadow-lg h-[488px]">
+        <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium">
             Monthly Sales Performance
           </CardTitle>
         </CardHeader>
-        <CardContent className="h-48">
+
+        {/* Increased height here */}
+        <CardContent className="h-[300px] pt-0">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={data}
@@ -80,20 +80,16 @@ export function MonthlySalesChart({ data }: MonthlySalesChartProps) {
                 tickLine={false}
                 axisLine={false}
               />
-
               <YAxis
                 dataKey="salesAmount"
                 stroke="#A1A1AA"
                 axisLine={false}
                 tickLine={false}
-                // If all sales are very small, setting a domain helps
-                // domain={[0, 'auto']}
               />
               <Tooltip
                 content={<CustomTooltip />}
                 cursor={{ fill: "rgba(255, 255, 255, 0.1)" }}
               />
-
               <Bar
                 dataKey="salesAmount"
                 name="Sales Amount"

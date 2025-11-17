@@ -3,8 +3,7 @@
 
 import { connectToDatabase } from "@/lib/db";
 import Variant from "@/lib/models/variant";
-import Product from "@/lib/models/product";
-import Unit from "@/lib/models/unit";
+
 
 export const getVariantsByMaxPrice = async (price: number) => {
   try {

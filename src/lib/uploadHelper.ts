@@ -1,6 +1,7 @@
 // src/lib/uploadHelper.ts
 import { writeFile } from 'fs/promises';
 import { join } from 'path';
+import fs from 'fs'; // 💡 FIX 1: Import core 'fs' module using ES Module syntax
 
 export const uploadFile = async (file: File | undefined, prefix: string): Promise<string | undefined> => {
   if (!file || file.size === 0) return undefined;
@@ -15,7 +16,7 @@ export const uploadFile = async (file: File | undefined, prefix: string): Promis
   const path = join(uploadDir, filename);
   
   // Ensure the upload directory exists
-  const fs = require('fs');
+  // 💡 FIX 2: Use the imported 'fs' variable instead of the forbidden require()
   if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
   }

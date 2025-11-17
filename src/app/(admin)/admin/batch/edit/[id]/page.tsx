@@ -1,44 +1,31 @@
-// src/app/(admin)/admin/batch/edit/[id]/page.tsx
-import { getBatchById } from "@/actions/batch.actions";
-import { BatchForm } from "@/components/forms/batch-form";
 import { Heading } from "@/components/ui/heading";
 import { Separator } from "@/components/ui/separator";
 import { redirect } from "next/navigation";
-import { Suspense } from "react";
-import { Loader2 } from "lucide-react";
+import { getBatchById, createBatch, updateBatch, generateBatchNumber } from "@/actions/batch.actions";
+import BatchFormWrapper from "@/components/forms/BatchFormWrapper";
 
-interface EditBatchPageProps {
-  params: {
-    id: string;
-  };
-}
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
 
-const Loading = () => (
-  <div className="flex justify-center items-center h-screen">
-    <Loader2 className="h-8 w-8 animate-spin" />
-  </div>
-);
-
-export default async function EditBatchPage({ params }: EditBatchPageProps) {
-  const { id } = params;
+export default async function EditBatchPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const result = await getBatchById(id);
 
   if (!result.success || !result.data) {
-    // If the batch is not found, redirect to the main batch page
     redirect("/admin/batch");
   }
 
-  const initialData = result.data;
-
   return (
-    <>
-      <div className="flex items-center justify-between">
-        <Heading title="Edit Batch" description="Update the details of this batch." />
-      </div>
+    <div className="p-8 pt-6 space-y-4">
+      <Heading title="Edit Batch" description="Update existing batch details." />
       <Separator />
-      <Suspense fallback={<Loading />}>
-        <BatchForm initialData={initialData} />
-      </Suspense>
-    </>
+      <BatchFormWrapper
+        initialData={result.data}
+        createBatchAction={createBatch}
+        updateBatchAction={updateBatch}
+        generateBatchNumberAction={generateBatchNumber}
+      />
+    </div>
   );
 }

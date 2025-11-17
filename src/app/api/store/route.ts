@@ -1,3 +1,4 @@
+// src/app/api/store/route.ts
 import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 import Store from '@/lib/models/store';
@@ -10,7 +11,10 @@ export async function GET() {
     await connectToDatabase();
     const stores = await Store.find({}).sort({ createdAt: 'desc' });
     return NextResponse.json({ success: true, data: stores });
-  } catch (error) {
+  } 
+  // 💡 FIX: Use ESLint disable comment to ignore unused variable
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  catch (_error) {
     return NextResponse.json({ success: false, message: 'Failed to fetch stores.' }, { status: 500 });
   }
 }

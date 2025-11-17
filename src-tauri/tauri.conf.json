@@ -1,0 +1,36 @@
+{
+  "productName": "POS System",
+  "version": "1.0.0",
+  "identifier": "com.rs.possystem",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "echo 'Skipping build'",
+    "devUrl": "http://localhost:3000"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "POS System",
+        "width": 1280,
+        "height": 800,
+        "resizable": true,
+        "fullscreen": false,
+        "url": "http://localhost:3000"
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "targets": ["app", "deb", "appimage"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/256x256.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}

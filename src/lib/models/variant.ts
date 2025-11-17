@@ -1,6 +1,6 @@
 // src/lib/models/variant.ts
 import mongoose, { Schema, Document, Types } from 'mongoose';
-import { IProduct, IPopulatedProduct } from './product';
+import { IPopulatedProduct } from './product'; // 💡 FIX: Removed unused 'IProduct'
 import { IUnit } from './unit';
 import './product';
 import './unit';

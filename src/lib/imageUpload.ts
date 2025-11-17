@@ -1,5 +1,14 @@
+// src/lib/imageUpload.ts
+
 import fs from 'fs/promises';
 import path from 'path';
+
+/**
+ * Interface for a standard NodeJS System Error object, which includes the 'code' property.
+ */
+interface SystemError extends Error {
+  code?: string;
+}
 
 /**
  * Uploads a file to a specified public directory.
@@ -58,12 +67,20 @@ export async function deleteImage(imageUrl: string): Promise<boolean> {
   try {
     await fs.unlink(fullPath);
     return true;
-  } catch (error: any) {
-    if (error.code === 'ENOENT') {
+  } catch (error: unknown) { // 💡 FIX 1: Use 'unknown' instead of 'any'
+    
+    // 💡 FIX 2: Use type guard to safely check for the 'code' property
+    const systemError = error as SystemError; 
+    
+    if (systemError.code === 'ENOENT') {
       console.warn(`Attempted to delete non-existent file: ${fullPath}`);
       return false; // File not found, consider it deleted
     }
-    console.error(`Error deleting image ${fullPath}:`, error);
-    throw new Error(`Failed to delete image: ${error.message}`);
+    
+    // Ensure we can access the message property safely
+    const errorMessage = systemError instanceof Error ? systemError.message : String(systemError);
+    
+    console.error(`Error deleting image ${fullPath}:`, systemError);
+    throw new Error(`Failed to delete image: ${errorMessage}`);
   }
 }

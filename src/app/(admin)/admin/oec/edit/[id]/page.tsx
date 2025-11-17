@@ -3,16 +3,20 @@ import { notFound } from "next/navigation";
 import { getOecById } from "@/actions/oec.actions";
 import { OecForm } from "@/components/forms/oec-form";
 
-interface EditOecPageProps {
-  params: {
-    id: string;
-  };
-}
+// ✅ Force runtime rendering to prevent static build serialization errors
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
 
-export default async function EditOecPage({ params }: EditOecPageProps) {
-  const { id } = params;
+export default async function EditOecPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params; // ✅ Must await the params promise
+
   const result = await getOecById(id);
-  
+
   if (!result.success || !result.data) {
     notFound();
   }

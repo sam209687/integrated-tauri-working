@@ -1,29 +1,52 @@
 // src/lib/utils.ts
-import { clsx } from "clsx"
+import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 import mongoose from "mongoose";
 
-export function cn(...inputs: any[]) {
+export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export const formatMongoData = (data: any | any[]): any | any[] => {
-  if (!data) return data;
+// Define the type for a cleaned MongoDB document
+type MongooseDoc = mongoose.Document;
+type CleanedDoc<T> = Omit<T, keyof MongooseDoc> & { _id: string };
 
-  const processObject = (item: any) => {
-    // If it's a mongoose document, convert it to a plain object
-    if (item instanceof mongoose.Document) {
-      const obj = item.toObject({ getters: true });
-      // Ensure the _id field is always a string
-      obj._id = obj._id.toString();
-      return obj;
+// Define the return type based on the input type T
+type FormatReturnType<T> = 
+  T extends (infer U)[] ? CleanedDoc<U>[] : 
+  T extends MongooseDoc ? CleanedDoc<T> : 
+  T;
+
+export const formatMongoData = <T extends MongooseDoc | T[] | null | undefined>(
+  data: T
+): FormatReturnType<T> => {
+  if (!data) {
+    return data as FormatReturnType<T>;
+  }
+
+  // 💡 FIX: Replaced 'any' with 'unknown' for safer typing
+  const processObject = (item: MongooseDoc | unknown): CleanedDoc<MongooseDoc> | unknown => {
+    // 💡 FIX: Simplified the type check to avoid using the 'Function' type explicitly.
+    // We check if it is an object, has 'toObject', and 'toObject' is a function.
+    if (item && typeof item === 'object' && 'toObject' in item && typeof (item as { toObject: unknown }).toObject === 'function') {
+      const doc = item as MongooseDoc;
+      
+      // Convert it to a plain object with getters
+      const obj = doc.toObject({ getters: true });
+      
+      // ✅ FIX: Explicitly cast doc._id to ObjectId to resolve 'unknown' error and call toString()
+      obj._id = (doc._id as mongoose.Types.ObjectId).toString(); 
+      
+      return obj as CleanedDoc<MongooseDoc>;
     }
     return item;
   };
 
   if (Array.isArray(data)) {
-    return data.map(processObject);
+    // Process each item in the array, asserting to the array return type
+    return data.map(processObject) as FormatReturnType<T>;
   } else {
-    return processObject(data);
+    // Process single object, asserting to the single object return type
+    return processObject(data) as FormatReturnType<T>;
   }
 };

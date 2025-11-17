@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Loader2, Pencil, Trash2, Package } from "lucide-react";
-import { toast } from "sonner";
 
 interface PackingItemsTableProps {
   initialMaterials: PackingMaterialWithBalance[];

@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { connectToDatabase } from '@/lib/db';
 import { uploadImage, deleteImage } from '@/lib/imageUpload';
-import Brand from '@/lib/models/brand';
+import Brand, { IBrand } from '@/lib/models/brand';
 import { brandSchema } from '@/lib/schemas';
 
 export async function getBrands() {
@@ -104,5 +104,27 @@ export async function updateBrand(brandId: string, formData: FormData) {
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     console.error("Error updating brand:", error);
     return { success: false, message: `Failed to update brand: ${errorMessage}` };
+  }
+}
+
+
+export async function getBrandById(id: string): Promise<{
+  success: boolean;
+  data?: IBrand | null;
+  message?: string;
+}> {
+  try {
+    await connectToDatabase();
+
+    const brand = await Brand.findById(id).lean<IBrand>().exec();
+
+    if (!brand) {
+      return { success: false, message: "Brand not found" };
+    }
+
+    return { success: true, data: brand };
+  } catch (error) {
+    console.error("Error fetching brand by ID:", error);
+    return { success: false, message: "Failed to fetch brand" };
   }
 }

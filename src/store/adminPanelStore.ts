@@ -1,3 +1,4 @@
+// src/store/adminPanelStore.ts
 import { create } from 'zustand';
 import { getDashboardData } from '@/actions/adminPanel.Actions';
 import { toast } from 'sonner';

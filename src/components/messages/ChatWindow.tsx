@@ -1,6 +1,6 @@
 // src/components/messages/ChatWindow.tsx
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, User } from 'lucide-react';
+import { Send } from 'lucide-react';
 import { useMessageStore } from '@/store/message.store';
 import { useAuth } from '@/hooks/use-auth';
 import { ScrollArea } from '@/components/ui/scroll-area';

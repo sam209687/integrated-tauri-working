@@ -33,9 +33,9 @@ export function MessageBubble({ message, isSender }: MessageBubbleProps) {
     >
       <div
         className={cn(
-          "p-3 max-w-sm rounded-lg shadow-md break-words",
+          "p-3 max-w-sm rounded-lg shadow-md wrap-break-words",
           isSender
-            ? "bg-gradient-to-br from-blue-500 to-blue-700 text-white rounded-br-none"
+            ? "bg-linear-to-br from-blue-500 to-blue-700 text-white rounded-br-none"
             : "bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-50 rounded-bl-none"
         )}
       >

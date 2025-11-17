@@ -1,19 +1,17 @@
+// src/components/tables/batchTable.tsx
 "use client";
 
 import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
-import { IBatch } from "@/lib/models/batch";
-import { IPopulatedProduct } from "@/lib/models/product";
 import { useBatchStore, IPopulatedBatch } from "@/store/batch.store";
 import { useDebounce } from "@/hooks/use-debounce";
 import { deleteBatch } from "@/actions/batch.actions";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { Loader2, Pencil, Trash2, Plus, FileText } from "lucide-react";
-import { IPopulatedVariant } from "@/lib/models/variant";
 
 // The IPopulatedBatch interface is now imported from the store.
 // We'll define a temporary type for the prop to prevent a circular dependency.
@@ -27,7 +25,7 @@ export function BatchTable({ initialBatches }: BatchTableProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
-  const [isPending, startTransition] = useTransition();
+  // Removed isPending and startTransition as they are not needed for simple Link navigation
   const [selectedBatchForReport, setSelectedBatchForReport] = useState<IPopulatedBatch | null>(null);
 
   useEffect(() => {
@@ -49,11 +47,7 @@ export function BatchTable({ initialBatches }: BatchTableProps) {
     }
   };
 
-  const handleAddBatchClick = () => {
-    startTransition(() => {
-      // This will handle the page transition
-    });
-  };
+  // ✅ REMOVED: handleAddBatchClick is no longer necessary as Link handles transition
 
   const handleOpenReport = (batch: IPopulatedBatch) => {
     setSelectedBatchForReport(batch);
@@ -105,206 +99,162 @@ export function BatchTable({ initialBatches }: BatchTableProps) {
 
   const renderReport = () => {
     if (!selectedBatchForReport) return null;
-
-    const { product, variant, vendorName, batchNumber, qty, price, oilExpelled, createdAt } = selectedBatchForReport;
+    // ✅ FIX: Remove 'variant' from destructuring to resolve TS2339
+    const { product, vendorName, batchNumber, qty, price, oilExpelled, createdAt } = selectedBatchForReport;
     const date = new Date(createdAt).toLocaleDateString();
+    
+    // Safety check for calculations
+    const safeQty = qty ?? 0;
+    const safeOilExpelled = oilExpelled ?? 0;
+    const safePrice = price ?? 0;
 
-    const seedsConsumed = (qty && oilExpelled) ? qty / oilExpelled : 0;
-    const purchasePricePerKg = (price && qty) ? price / qty : 0;
+    const seedsConsumed = (safeQty > 0 && safeOilExpelled > 0) ? safeQty / safeOilExpelled : 0;
+    const purchasePricePerKg = (safePrice > 0 && safeQty > 0) ? safePrice / safeQty : 0;
     
     // Round down to one decimal place for calculations
     const roundedSeedsConsumed = Math.floor(seedsConsumed * 10) / 10;
     
     // New calculation for Oil Price / Ltr
-    const oilPricePerLtr = purchasePricePerKg * roundedSeedsConsumed;
+    const oilPricePerLtr = purchasePricePerKg * roundedSeedsConsumed; 
     
     // Fallback if product or sellingPrice is null/undefined
-    const sellingPricePerLtr = (product?.sellingPrice ?? 0) / 2;
-    const priceOfSeedsConsumed = sellingPricePerLtr * roundedSeedsConsumed;
-    
-    // Additional charges are now on the variant
-    const additionalCharges = (variant?.packingCharges ?? 0) + (variant?.laborCharges ?? 0) + (variant?.electricityCharges ?? 0) + (variant?.others1 ?? 0) + (variant?.others2 ?? 0);
-    const finalSellingPrice = additionalCharges + priceOfSeedsConsumed;
+    const sellingPrice = product?.sellingPrice ?? 0; 
 
     return (
-      <div id="report-content" className="p-6">
-        <h2 className="text-2xl font-bold mb-4">Detail Summary of this Batch</h2>
-        <div className="space-y-2 mb-6">
-          <p><strong>Date:</strong> {date}</p>
-          <p><strong>Vendor Name:</strong> {vendorName}</p>
-          <p><strong>Product Name:</strong> {product?.productName}</p> {/* Use optional chaining */}
-          <p><strong>Batch Number:</strong> <span className="text-xl font-extrabold">{batchNumber}</span></p>
+      <div id="report-content" className="space-y-4 p-6 border rounded-md">
+        <h2 className="text-xl font-extrabold text-gray-800">Batch Details</h2>
+        <div className="grid grid-cols-2 gap-y-2 text-gray-700">
+          <p><strong>Batch Number:</strong></p>
+          <p>{batchNumber}</p>
+          <p><strong>Product:</strong></p>
+          <p>{product?.productName}</p>
+          <p><strong>Category:</strong></p>
+          {/* Note: product.category is not populated here, relying on product.productName for context */}
+          <p>{product?.category?.name || "N/A"}</p> 
+          <p><strong>Vendor:</strong></p>
+          <p>{vendorName}</p>
+          <p><strong>Date:</strong></p>
+          <p>{date}</p>
         </div>
-        <div className="rounded-md border overflow-x-auto"> {/* Added overflow-x-auto for table on small screens */}
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Field</TableHead>
-                <TableHead>Value</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <TableRow>
-                <TableCell>Qty Purchased</TableCell>
-                <TableCell>{qty} kg</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell>Price</TableCell>
-                <TableCell>₹ {price?.toFixed(2)}</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell>Oil Expelled (In Ltr)</TableCell>
-                <TableCell>{oilExpelled} Ltrs</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell>Seeds consumed to produce per litre oil</TableCell>
-                <TableCell>{seedsConsumed.toFixed(2)} kg</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell>Purchase Price per kg</TableCell>
-                <TableCell>₹ {purchasePricePerKg.toFixed(2)}</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell>Oil Price / Ltr</TableCell>
-                <TableCell>₹ {oilPricePerLtr.toFixed(2)}</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell>Selling Price / Ltr</TableCell>
-                <TableCell>₹ {sellingPricePerLtr.toFixed(2)}</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell>Price of ({roundedSeedsConsumed.toFixed(2)} kg)</TableCell>
-                <TableCell>₹ {priceOfSeedsConsumed.toFixed(2)}</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell>Final Selling Price</TableCell>
-                <TableCell>₹ {finalSellingPrice.toFixed(2)}</TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
+        
+        <Separator />
+        
+        <h3 className="text-lg font-bold mt-4 text-gray-800">Financial & Production Summary</h3>
+        <div className="grid grid-cols-2 gap-y-2 text-gray-700">
+          <p><strong>Quantity Purchased (KG):</strong></p>
+          <p>{safeQty.toFixed(2)}</p>
+          <p><strong>Total Price (INR):</strong></p>
+          <p>₹{safePrice.toFixed(2)}</p>
+          <p><strong>Purchase Price (INR/KG):</strong></p>
+          <p>₹{purchasePricePerKg.toFixed(2)}</p>
+
+          {safeOilExpelled > 0 && (
+            <>
+              <p><strong>Oil Expelled (Ltrs):</strong></p>
+              <p>{safeOilExpelled.toFixed(2)}</p>
+              <p><strong>Seeds Consumed per Ltr (KG):</strong></p>
+              <p>{seedsConsumed.toFixed(2)}</p>
+              <p><strong>Cost Price of Oil (INR/Ltr):</strong></p>
+              <p>₹{oilPricePerLtr.toFixed(2)}</p>
+            </>
+          )}
+
+          {sellingPrice > 0 && (
+            <>
+              <p><strong>Product Selling Price (INR/Unit):</strong></p>
+              <p>₹{sellingPrice.toFixed(2)}</p>
+            </>
+          )}
         </div>
-        {/* Buttons are outside the print area so they are not duplicated in the print content string */}
-        {/* They are placed in the DialogContent wrapper which already contains print-related classes */}
       </div>
     );
   };
 
   return (
     <div className="space-y-4">
-      {/* Responsive Header:
-        - On small screens (sm:), the items will stack (flex-col) and the search input will take full width (w-full).
-        - On medium screens and up (md:), they will be side-by-side (md:flex-row) and space-between (justify-between).
-      */}
-      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+      <div className="flex justify-between items-center">
         <Input
-          placeholder="Search by batch, vendor or product name..."
+          placeholder="Search batches..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          // On mobile, take full width. On medium screens, limit the width.
-          className="w-full md:max-w-sm"
+          className="max-w-sm"
         />
-        <Link href="/admin/batch/add-batch" onClick={handleAddBatchClick} className="w-full md:w-auto">
-          {/* Ensure the button also takes full width on small screens for better touch targets */}
-          <Button disabled={isPending} className="w-full md:w-auto">
-            {isPending ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Loading...
-              </>
-            ) : (
-              <>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Batch
-              </>
-            )}
+        {/* ✅ FIX: Removed unnecessary onClick={handleAddBatchClick} and isPending from the Button */}
+        <Link href="/admin/batch/add">
+          <Button>
+            <Plus className="mr-2 h-4 w-4" />
+            Add New Batch
           </Button>
         </Link>
       </div>
 
-      {/* Responsive Table:
-        - The `overflow-x-auto` wrapper ensures the table can be horizontally scrolled on small screens if it's too wide.
-      */}
       <div className="rounded-md border overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
-              {/* Hide S/No on small screens to save space */}
-              <TableHead className="w-[80px] hidden sm:table-cell">S/No</TableHead>
-              {/* Always show Batch Number and Product Name */}
-              <TableHead className="min-w-[120px]">Batch Number</TableHead>
-              {/* Show Vendor Name on medium screens and up */}
-              <TableHead className="hidden md:table-cell min-w-[150px]">Vendor Name</TableHead>
-              <TableHead className="min-w-[150px]">Product Name</TableHead>
-              {/* Show Quantity and Price on small screens, but give them a minimum width */}
-              <TableHead className="min-w-[80px]">Quantity</TableHead>
-              <TableHead className="hidden sm:table-cell min-w-[100px]">Price</TableHead>
-              {/* Actions column: always present, but ensure buttons are compact */}
-              <TableHead className="text-right w-[120px] pr-4">Actions</TableHead>
+              <TableHead>Batch No.</TableHead>
+              <TableHead>Product</TableHead>
+              <TableHead>Vendor</TableHead>
+              <TableHead className="text-right">Qty (KG)</TableHead>
+              <TableHead className="text-right">Price (₹)</TableHead>
+              <TableHead className="text-right">Oil Expelled (Ltr)</TableHead>
+              <TableHead className="text-center w-20">Actions</TableHead> {/* ✅ FIX: w-20 */}
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredBatches.length > 0 ? (
-              filteredBatches.map((batch: IPopulatedBatch, index: number) => (
-                <TableRow key={batch._id.toString()}>
-                  <TableCell className="hidden sm:table-cell">{index + 1}</TableCell>
-                  <TableCell className="font-medium">{batch.batchNumber}</TableCell>
-                  <TableCell className="hidden md:table-cell">{batch.vendorName}</TableCell>
+              filteredBatches.map((batch) => (
+                <TableRow key={batch._id}>
+                  <TableCell className="font-medium min-w-20">{batch.batchNumber}</TableCell> {/* ✅ FIX: min-w-20 */}
                   <TableCell>{batch.product?.productName}</TableCell>
-                  <TableCell>
-                    {batch.qty} kg
-                  </TableCell>
-                  <TableCell className="hidden sm:table-cell">₹ {(batch.price ?? 0).toFixed(2)}</TableCell>
-                  <TableCell className="text-right pr-4">
-                    {/* Compact Action Buttons with `size="icon"` */}
-                    <div className="flex items-center justify-end gap-1">
-                      <Link href={`/admin/batch/edit/${batch._id}`}>
-                        <Button variant="outline" size="icon" className="h-8 w-8">
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                      </Link>
-                      <Button
-                        variant="destructive"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => handleDelete(batch._id.toString())}
-                        disabled={isDeleting && deletingId === batch._id.toString()}
-                      >
-                        {isDeleting && deletingId === batch._id.toString() ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-4 w-4" />
-                        )}
+                  <TableCell>{batch.vendorName}</TableCell>
+                  <TableCell className="text-right">{batch.qty?.toFixed(2) ?? 'N/A'}</TableCell>
+                  <TableCell className="text-right">₹{batch.price?.toFixed(2) ?? 'N/A'}</TableCell>
+                  <TableCell className="text-right">{batch.oilExpelled?.toFixed(2) ?? 'N/A'}</TableCell>
+                  <TableCell className="flex justify-center items-center gap-2 min-w-20"> {/* ✅ FIX: min-w-20 */}
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      onClick={() => handleOpenReport(batch)} 
+                      title="View Report"
+                      disabled={isDeleting}
+                    >
+                      <FileText className="h-4 w-4" />
+                    </Button>
+                    <Link href={`/admin/batch/edit/${batch._id}`} className="min-w-fit">
+                      <Button variant="outline" size="icon" title="Edit" disabled={isDeleting}>
+                        <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => handleOpenReport(batch)}
-                        disabled={!batch.oilExpelled}
-                        title={!batch.oilExpelled ? "Cannot generate report. Oil Expelled field is empty." : "Generate Report"}
-                      >
-                        <FileText className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    </Link>
+                    <Button 
+                      variant="destructive" 
+                      size="icon" 
+                      onClick={() => handleDelete(batch._id)}
+                      disabled={isDeleting && deletingId === batch._id}
+                      title="Delete"
+                    >
+                      {isDeleting && deletingId === batch._id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={7} className="h-24 text-center">
-                  No batches found.
-                </TableCell>
+                <TableCell colSpan={7} className="text-center">No batches found.</TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
       </div>
-      
-      {/* Responsive Dialog:
-        - sm:max-w-[800px] ensures it doesn't get too wide on large screens.
-        - max-h-[90vh] and overflow-y-auto ensure it fits on smaller screens and is scrollable.
-      */}
-      <Dialog open={!!selectedBatchForReport} onOpenChange={(open) => !open && setSelectedBatchForReport(null)}>
+
+      <Dialog 
+        open={!!selectedBatchForReport} 
+        onOpenChange={(open) => !open && setSelectedBatchForReport(null)}
+      >
         <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Batch Report</DialogTitle>

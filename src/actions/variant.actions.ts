@@ -1,3 +1,4 @@
+// src/actions/variant.actions.ts
 "use server";
 
 import { revalidatePath } from "next/cache";
@@ -5,13 +6,20 @@ import { connectToDatabase } from "@/lib/db";
 import Variant from "@/lib/models/variant";
 import { variantSchema } from "@/lib/schemas";
 import { z } from "zod";
+import { Types } from "mongoose";
+
+// ✅ NEW INTERFACE: For the stock update payload
+interface StockUpdateItem {
+  variantId: string | Types.ObjectId;
+  quantity: number;
+}
 
 export interface VariantData {
   product: string;
   variantVolume: number;
   unit: string;
-  unitConsumed: number; // ✅ NEW: Added to interface
-  unitConsumedUnit: string; // ✅ NEW: Added to interface
+  unitConsumed: number;
+  unitConsumedUnit: string;
   variantColor?: string;
   price: number;
   mrp: number;
@@ -37,6 +45,28 @@ export interface LowStockAlertData {
   variantColor: string;
 }
 
+// 💡 NEW: Minimal types for lean populated data
+interface PopulatedProductLean {
+    name?: string;
+    productCode?: string;
+}
+
+interface PopulatedUnitLean {
+    name?: string;
+}
+
+// Interface representing the lean variant document after population
+interface LowStockVariantLean {
+    _id: Types.ObjectId;
+    product: PopulatedProductLean;
+    unit: PopulatedUnitLean;
+    variantVolume: number;
+    stockQuantity: number;
+    stockAlertQuantity: number;
+    variantColor?: string;
+}
+
+
 // Fetch all variants
 export const getVariants = async () => {
   try {
@@ -59,6 +89,7 @@ export const getVariantById = async (id: string) => {
     }
     return { success: true, data: JSON.parse(JSON.stringify(variant)) };
   } catch (error) {
+    console.error("Failed to fetch variant:", error); 
     return { success: false, message: "Failed to fetch variant." };
   }
 };
@@ -144,10 +175,12 @@ export const getLowStockVariants = async () => {
       $expr: { $lte: ["$stockQuantity", "$stockAlertQuantity"] }
     })
     .populate("product unit") // Populate product and unit
-    .lean();
+    // ❌ FIX 2: Use the new local interface to enforce type safety
+    .lean<LowStockVariantLean[]>(); 
     
     // Structure the data for the frontend
-    const alertData: LowStockAlertData[] = lowStockVariants.map((variant: any) => {
+    // The type for 'variant' is now inferred from the lean call, resolving the 'any' error.
+    const alertData: LowStockAlertData[] = lowStockVariants.map((variant) => {
         
         let productName: string;
         
@@ -201,3 +234,49 @@ export const getUsedPackingMaterialQuantity = async (volume: number, unitId: str
     return { success: false, data: 0, message: "Failed to calculate used packing quantity." };
   }
 };
+
+
+// ====================================================================
+// ✅ NEW: DYNAMIC STOCK UPDATE FUNCTIONALITY
+// ====================================================================
+
+/**
+ * Updates the stock quantity for multiple product variants in a single bulk operation
+ * by decrementing the stockQuantity after a successful sale.
+ * @param items Array of { variantId, quantity } sold to be decremented from stock.
+ * @returns An object indicating success or failure.
+ */
+export async function updateStockQuantitiesInDB(items: StockUpdateItem[]) {
+  try {
+    await connectToDatabase();
+
+    if (items.length === 0) {
+        return { success: true, message: "No items to update." };
+    }
+
+    // Use bulkWrite to perform multiple atomic updates efficiently
+    const bulkOperations = items.map(item => ({
+      updateOne: {
+        // Find the variant by its ID
+        filter: { _id: item.variantId },
+        // Use $inc with a negative value to decrement (reduce) the stockQuantity
+        update: { $inc: { stockQuantity: -item.quantity } },
+      },
+    }));
+
+    const result = await Variant.bulkWrite(bulkOperations);
+
+    const modifiedCount = result.modifiedCount;
+
+    // Optional: Revalidate POS product list to reflect new stock immediately
+    revalidatePath("/pos"); 
+
+    return { success: true, message: `Successfully reduced stock for ${modifiedCount} variants.` };
+  } catch (error) {
+    console.error("❌ Database error during stock update:", error);
+    return { 
+      success: false, 
+      message: `Failed to update stocks: ${error instanceof Error ? error.message : "An unknown database error occurred"}` 
+    };
+  }
+}

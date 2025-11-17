@@ -8,7 +8,10 @@ export async function GET() {
     await connectToDatabase();
     const categories = await Category.find({});
     return NextResponse.json(categories);
-  } catch (error) {
+  } 
+  // 💡 FIX: Use ESLint disable comment to ignore unused variable
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  catch (_error) {
     return NextResponse.json({ message: 'Error fetching categories' }, { status: 500 });
   }
 }

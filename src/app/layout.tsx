@@ -1,5 +1,4 @@
 "use client";
-import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "sonner";
@@ -7,7 +6,6 @@ import { SessionProvider, useSession } from "next-auth/react";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { ThemeProvider } from "@/components/themes/theme-provider";
-import { auth } from '@/lib/auth';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

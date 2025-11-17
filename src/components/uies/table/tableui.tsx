@@ -1,6 +1,5 @@
 // src/components/uies/table/tableui.tsx
-// (Assuming you have imports for Table, TableBody, TableCell, TableHead, TableHeader, TableRow from '@/components/ui/table')
-// (Assuming you have cn utility)
+"use client";
 
 import {
   Table,
@@ -9,8 +8,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'; // Adjust path if different
-import { cn } from '@/lib/utils'; // Adjust path if different
+} from '@/components/ui/table'; 
 import React from 'react';
 
 // Define a generic type for the table data item
@@ -34,12 +32,14 @@ interface TableUIProps<T> {
   ) => React.ReactElement;
 }
 
-export function TableUI<T extends { [key: string]: any }>({
+// 💡 FIX 1: Tighten the constraint on T to ensure its values are renderable types.
+// We assert that the values (V) of the object T must be string, number, or null/undefined.
+export function TableUI<T extends Record<string, string | number | null | undefined>>({
   data,
   columns,
   renderActions,
   rowKey,
-  renderRowWrapper, // Destructure the new prop
+  renderRowWrapper, 
 }: TableUIProps<T>) {
   return (
     <div className="rounded-md border bg-white dark:bg-gray-800 shadow-sm">
@@ -70,7 +70,13 @@ export function TableUI<T extends { [key: string]: any }>({
                 <>
                   {columns.map((column, colIndex) => (
                     <TableCell key={column.key.toString() + colIndex} className="text-gray-800 dark:text-gray-100">
-                      {column.render ? column.render(item) : item[column.key]}
+                      {column.render ? 
+                        column.render(item) 
+                        : 
+                        // 💡 FIX 2: Cast the accessed property to React.ReactNode to resolve the type error.
+                        // The tighter constraint in FIX 1 helps ensure this cast is safe.
+                        (item[column.key as keyof T] as React.ReactNode)
+                      }
                     </TableCell>
                   ))}
                   {renderActions && (
@@ -88,7 +94,8 @@ export function TableUI<T extends { [key: string]: any }>({
                 return renderRowWrapper(item, defaultCells);
               } else {
                 return (
-                  <TableRow key={item[rowKey]} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                  // Cast rowKey access to a renderable key type (string | number)
+                  <TableRow key={item[rowKey as keyof T] as string | number} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                     {defaultCells}
                   </TableRow>
                 );

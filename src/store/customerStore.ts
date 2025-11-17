@@ -2,28 +2,36 @@
 
 import { create } from 'zustand';
 import { toast } from 'sonner';
-import { ICustomer } from '@/lib/models/customer';
-import { getInvoiceCountByCustomer } from '@/actions/invoice.actions';
+
+// ⚠️ ASSUMPTION: You need to import ICustomer from your models
+import { ICustomer } from '@/lib/models/customer'; 
+
+// ⚠️ ASSUMPTION: You need to import your customer actions
+import { 
+    createCustomer as createCustomerAction, 
+    searchCustomersByPhonePrefix as searchCustomersAction 
+} from '@/actions/customer.actions'; 
+
+// ⚠️ ASSUMPTION: You need to import your invoice action for visit count
+import { getInvoiceCountByCustomer } from '@/actions/invoice.actions'; 
+
 
 interface CustomerState {
   phone: string;
   name: string;
   address: string;
-  // ✅ MODIFIED: customer now holds the selected customer (if found)
   customer: ICustomer | null; 
-  // ✅ NEW STATE: Holds the list of customers from the partial search
   suggestions: ICustomer[];
   isCustomerFound: boolean;
   isLoading: boolean;
   visitCount: number;
+  
   setPhone: (phone: string) => void;
   setName: (name: string) => void;
   setAddress: (address: string) => void;
-  // ✅ MODIFIED ACTION: Renamed for search functionality
   searchCustomersByPhonePrefix: (prefix: string) => Promise<void>; 
-  // ✅ NEW ACTION: To select a customer from the suggestion list
   selectCustomer: (selectedCustomer: ICustomer) => Promise<void>; 
-  createCustomer: () => Promise<void>;
+  createCustomer: () => Promise<void>; // ✅ MODIFIED: Implemented below
   resetCustomer: () => void;
 }
 
@@ -32,7 +40,7 @@ export const useCustomerStore = create<CustomerState>((set, get) => ({
   name: '',
   address: '',
   customer: null,
-  suggestions: [], // Initial state
+  suggestions: [],
   isCustomerFound: false,
   isLoading: false,
   visitCount: 0,
@@ -41,9 +49,7 @@ export const useCustomerStore = create<CustomerState>((set, get) => ({
   setName: (name) => set({ name }),
   setAddress: (address) => set({ address }),
 
-  // ✅ NEW/MODIFIED ACTION
   searchCustomersByPhonePrefix: async (prefix) => {
-    // Only search if prefix length is 3 or more
     if (prefix.length < 3) {
         set({ suggestions: [] });
         return;
@@ -51,27 +57,24 @@ export const useCustomerStore = create<CustomerState>((set, get) => ({
 
     set({ isLoading: true });
     try {
-      const url = `${window.location.origin}/api/customer/${prefix}`;
-      const response = await fetch(url);
+      // ✅ MODIFIED: Use the imported server action instead of a direct API route call
+      const result = await searchCustomersAction(prefix);
 
-      if (response.ok) {
-        // API now returns an array of customers
-        const foundCustomers: ICustomer[] = await response.json();
+      if (result.success && result.data) {
         set({
-          suggestions: foundCustomers,
+          suggestions: result.data as ICustomer[],
           isLoading: false,
         });
       } else {
-        // If 404 (no match), clear suggestions
         set({ suggestions: [], isLoading: false });
       }
     } catch (error) {
       console.error("Error searching customers:", error);
       set({ isLoading: false });
+      toast.error("Error searching for customer suggestions.");
     }
   },
 
-  // ✅ NEW ACTION: Sets the selected customer and fetches their visit count
   selectCustomer: async (selectedCustomer) => {
     // This is run when the user clicks a suggestion
     const countResult = await getInvoiceCountByCustomer(selectedCustomer._id);
@@ -88,8 +91,36 @@ export const useCustomerStore = create<CustomerState>((set, get) => ({
     toast.success(`Customer selected: ${selectedCustomer.name}`);
   },
 
+  // ✅ FIX: Implementation for creating or confirming a customer
   createCustomer: async () => {
-    // ... (logic remains the same)
+    const { phone, name, address, selectCustomer } = get(); 
+    
+    if (phone.length !== 10 || name.trim().length < 2) {
+        toast.error("Please enter a valid 10-digit phone number and name.");
+        return;
+    }
+    
+    set({ isLoading: true });
+    
+    const dataToSend = { phone, name, address };
+    
+    try {
+        // Calls the server action to CREATE the customer (or return existing one if found)
+        const result = await createCustomerAction(dataToSend);
+        
+        if (result.success && result.data) {
+            // Use the selectCustomer action to update all related state fields
+            await selectCustomer(result.data as ICustomer);
+            toast.success(result.message || "Customer added/selected successfully!");
+        } else {
+            toast.error(result.message || "Failed to add customer.");
+        }
+    } catch (error) {
+        toast.error("An unexpected error occurred while adding the customer.");
+        console.error("CREATE CUSTOMer CLIENT ERROR:", error);
+    } finally {
+        set({ isLoading: false });
+    }
   },
 
   resetCustomer: () => set({ 
@@ -98,7 +129,7 @@ export const useCustomerStore = create<CustomerState>((set, get) => ({
     address: '', 
     customer: null, 
     isCustomerFound: false, 
-    suggestions: [], // Reset suggestions
+    suggestions: [], 
     visitCount:0 
   }),
 }));

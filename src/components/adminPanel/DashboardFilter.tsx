@@ -1,7 +1,7 @@
 // src/components/adminPanel/dashboard/DashboardFilter.tsx (Modified for Key Prop)
 "use client";
 
-import { useState } from "react"; // Removed useEffect
+import { useState } from "react"; 
 import { format, startOfDay, endOfDay, subDays, subMonths } from "date-fns";
 import { ArrowRight } from "lucide-react"; 
 
@@ -49,7 +49,6 @@ export function DashboardFilter({
     isCustomRange ? currentToDate : undefined
   );
 
-  // 🛑 REMOVED: The problematic useEffect hook is removed.
 
 
   const handlePresetChange = (value: string) => {
@@ -114,7 +113,7 @@ export function DashboardFilter({
           <SelectValue placeholder="Select a filter" /> 
         </SelectTrigger>
         <SelectContent className="dark:bg-gray-800 dark:border-gray-700 dark:text-white">
-          <SelectItem value="today">Today's Business</SelectItem>
+          <SelectItem value="today">Today&apos;s Business</SelectItem> {/* 💡 FIX: Escaped the apostrophe */}
           <SelectItem value="last7days">Last 7 Days</SelectItem>
           <SelectItem value="last3months">Last 3 Months</SelectItem>
         </SelectContent>

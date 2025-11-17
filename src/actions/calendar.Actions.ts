@@ -1,12 +1,44 @@
+// src/lib/calendar/calendar.action.ts
+
 "use server";
 
-import { format } from 'date-fns';
+// --- Type Definitions for API Response and Application ---
 
-type Holiday = {
+/** Defines the structure of a single event item from the Google Calendar API. */
+interface CalendarEvent {
+  summary: string;
+  start: {
+    date: string; // Used for all-day events (holidays)
+    dateTime?: string; // Used for time-specific events
+  };
+}
+
+/** Defines the structure of the overall Google Calendar API response. */
+interface GoogleCalendarResponse {
+    items?: CalendarEvent[];
+}
+
+/** * ✅ FIX: New interface to type the Google Calendar API error response,
+ * which typically returns the message nested under 'error'.
+ */
+interface GoogleCalendarError {
+  error: {
+    message: string;
+  };
+}
+
+/** Defines the clean structure used by the application */
+export type Holiday = {
   name: string;
   date: string;
 };
 
+// ----------------------------------------------------------
+
+/**
+ * Fetches Indian holidays for the current year from the Google Calendar API.
+ * * @returns A promise that resolves to an array of Holiday objects.
+ */
 export async function getIndianHolidays(): Promise<Holiday[]> {
   const apiKey = process.env.GOOGLE_CALENDAR_API_KEY;
   const calendarId = process.env.PUBLIC_INDIAN_HOLIDAYS_CALENDAR_ID;
@@ -30,20 +62,17 @@ export async function getIndianHolidays(): Promise<Holiday[]> {
   try {
     const response = await fetch(url.toString());
     if (!response.ok) {
-      const error = await response.json();
+      // 🚀 FIX APPLIED: Cast the error response to the new interface `GoogleCalendarError`
+      const error = await response.json() as GoogleCalendarError;
       throw new Error(`Google Calendar API error: ${error.error.message}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as GoogleCalendarResponse;
 
-    // ✅ ADD THIS LOG to see the raw response from Google
-    // console.log("--- Raw Response from Google API ---", JSON.stringify(data, null, 2));
-
-    // Ensure data.items exists before trying to map it
-    const holidays: Holiday[] = data.items?.map((event: any) => ({
+    const holidays: Holiday[] = data.items?.map((event: CalendarEvent) => ({
       name: event.summary,
       date: event.start.date,
-    })) || []; // Use || [] as a fallback in case items is undefined
+    })) || [];
 
     return holidays;
 

@@ -96,7 +96,7 @@ export default function AdminLayout({
 
           {/* Global loading overlay */}
           {isGlobalLoading && (
-            <div className="fixed inset-0 bg-black/10 dark:bg-black/30 z-[60] flex items-center justify-center pointer-events-none">
+            <div className="fixed inset-0 bg-black/10 dark:bg-black/30 z-60 flex items-center justify-center pointer-events-none">
               <Loader2 className="h-10 w-10 text-primary animate-spin" />
             </div>
           )}

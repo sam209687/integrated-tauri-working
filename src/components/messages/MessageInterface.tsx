@@ -5,7 +5,6 @@ import type { Session } from 'next-auth'; // Import the Session type
 import { useMessageStore } from '@/store/message.store';
 import { ConversationList } from '@/components/messages/ConversationList';
 import { ChatWindow } from '@/components/messages/ChatWindow';
-import { Loader2 } from 'lucide-react';
 
 // This component now receives the user's session as a prop
 interface MessageInterfaceProps {

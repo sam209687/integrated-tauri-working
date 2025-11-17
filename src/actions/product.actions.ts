@@ -7,11 +7,13 @@ import { connectToDatabase } from "@/lib/db";
 import Product, { IProduct, IPopulatedProduct } from "@/lib/models/product";
 import Category, { ICategory } from "@/lib/models/category";
 import Brand, { IBrand } from "@/lib/models/brand";
-import Unit, { IUnit } from "@/lib/models/unit";
 import Tax, { ITax } from "@/lib/models/tax";
 import { getCategoryById } from "./category.actions";
 import { productSchema } from "@/lib/schemas";
 import { z } from "zod";
+import { Types } from "mongoose"; // 💡 Added Types for ObjectId
+
+// Import models for side-effects
 import "@/lib/models/brand";
 import "@/lib/models/category";
 import "@/lib/models/unit";
@@ -40,9 +42,12 @@ export interface BoardPriceItem {
 export const generateProductCodeForUI = async (categoryId: string) => {
   try {
     const categoryResult = await getCategoryById(categoryId);
-    if (!categoryResult.success || !categoryResult.data.codePrefix) {
+    
+    // 💡 FIX: Check if categoryResult.data exists to safely access codePrefix.
+    if (!categoryResult.success || !categoryResult.data || !categoryResult.data.codePrefix) {
       return { success: false, message: "Category not found or does not have a code prefix." };
     }
+    
     const newProductCode = await generateProductCode(categoryResult.data.codePrefix);
     return { success: true, data: newProductCode, message: "Product code generated successfully!" };
   } catch (error) {
@@ -90,6 +95,7 @@ export const getProducts = async () => {
     const products = await Product.find({}).populate("category brand tax").lean();
     return { success: true, data: JSON.parse(JSON.stringify(products)) as IPopulatedProduct[] };
   } catch (error) {
+    console.error("Failed to fetch products:", error);
     return { success: false, message: "Failed to fetch products." };
   }
 };
@@ -97,16 +103,23 @@ export const getProducts = async () => {
 export const getBoardPriceProducts = async () => {
   try {
     await connectToDatabase();
-    // Fetch only the required fields
+    
+    // Define the expected shape of a lean document with only selected fields
+    interface ProductLean {
+        _id: Types.ObjectId;
+        productName: string;
+        productCode: string;
+        sellingPrice: number;
+    }
+
     const products = await Product.find({})
       .select('productName productCode sellingPrice')
-      .lean();
+      .lean<ProductLean[]>(); 
 
     const totalCount = await Product.countDocuments(); // Count total documents
 
     const boardPriceData: BoardPriceItem[] = products.map((product) => ({
-      // FIX: Assert type of _id to any to resolve TS2339/TS18046 error on .toString()
-      _id: (product._id as any).toString(), 
+      _id: product._id.toString(), 
       productName: product.productName,
       productCode: product.productCode,
       sellingPrice: product.sellingPrice,
@@ -172,13 +185,28 @@ export const createProduct = async (data: ProductData) => {
   try {
     const validatedData = productSchema.parse(data);
     await connectToDatabase();
-    
+
+    // ✅ If no productCode was passed, generate one automatically.
+    if (!validatedData.productCode) {
+      const categoryDoc = await Category.findById(validatedData.category);
+      if (!categoryDoc || !categoryDoc.codePrefix) {
+        throw new Error("Category not found or missing code prefix");
+      }
+      validatedData.productCode = await generateProductCode(categoryDoc.codePrefix);
+    }
+
     validatedData.totalPrice = validatedData.sellingPrice;
-    
+
     const newProduct = new Product(validatedData);
     await newProduct.save();
+
     revalidatePath("/admin/products");
-    return { success: true, data: JSON.parse(JSON.stringify(newProduct)), message: "Product created successfully!" };
+
+    return {
+      success: true,
+      data: JSON.parse(JSON.stringify(newProduct)),
+      message: "Product created successfully!",
+    };
   } catch (error) {
     if (error instanceof z.ZodError) {
       return { success: false, message: error.errors[0].message };
@@ -187,6 +215,7 @@ export const createProduct = async (data: ProductData) => {
     return { success: false, message: "Failed to create product." };
   }
 };
+
 
 export const updateProduct = async (id: string, data: ProductData) => {
   try {
@@ -232,3 +261,35 @@ export const deleteProduct = async (id: string) => {
     return { success: false, message: "Failed to delete product." };
   }
 };
+
+export const getLowStockProducts = async () => {
+  try {
+    await connectToDatabase();
+
+    // Adjust based on your schema — for example:
+    // - If `stockQuantity` is on Variant → use Variant model
+    // - If `stockQuantity` is on Product → use Product model (like here)
+    const lowStockThreshold = 10; // You can tweak this
+    const lowStockProducts = await Product.find({ stockQuantity: { $lt: lowStockThreshold } })
+      .select("productName productCode stockQuantity")
+      .lean();
+
+    const totalLowStock = lowStockProducts.length;
+
+    return {
+      success: true,
+      data: JSON.parse(JSON.stringify(lowStockProducts)),
+      totalLowStock,
+    };
+  } catch (error) {
+    console.error("Failed to fetch low stock products:", error);
+    return {
+      success: false,
+      message: "Failed to fetch low stock products.",
+      data: [],
+      totalLowStock: 0,
+    };
+  }
+};
+
+

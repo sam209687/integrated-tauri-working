@@ -1,5 +1,9 @@
-import mongoose, { Schema, model, models, Document } from 'mongoose';
+// src/lib/models/store.ts
+import mongoose, { Schema, Document, model, models } from "mongoose";
 
+/**
+ * IStore - exported interface (use `import type { IStore } from "@/lib/models/store"`)
+ */
 export interface IStore extends Document {
   storeName: string;
   address: string;
@@ -8,96 +12,71 @@ export interface IStore extends Document {
   state: string;
   contactNumber: string;
   email: string;
-  fssai?: string; // ✅ UPDATED: Optional FSSAI field
-  pan?: string;   // ✅ NEW: Optional PAN field
-  gst?: string;   // ✅ NEW: Optional GST field
+  fssai?: string;
+  pan?: string;
+  gst?: string;
   logo?: string;
   qrCode?: string;
-  mediaUrl?: string; 
-  mediaQRCode?: string; // ✅ NEW: Optional Media QR Code field
-  status: 'ACTIVE' | 'INACTIVE';
+  mediaUrl?: string;
+  mediaQRCode?: string;
+  status: "ACTIVE" | "INACTIVE";
   createdAt: Date;
   updatedAt: Date;
 }
 
-const StoreSchema = new Schema<IStore>({
-  storeName: {
-    type: String,
-    required: [true, 'Store name is required'],
-    trim: true,
-  },
-  address: {
-    type: String,
-    required: [true, 'Address is required'],
-    trim: true,
-  },
-  city: {
-    type: String,
-    required: [true, 'City is required'],
-    trim: true,
-  },
-  pincode: {
-    type: String,
-    required: [true, 'Pincode is required'],
-  },
-  state: {
-    type: String,
-    required: [true, 'State is required'],
-    trim: true,
-  },
-  contactNumber: {
-    type: String,
-    required: [true, 'Contact number is required'],
-  },
-  email: {
-    type: String,
-    required: [true, 'Email is required'],
-  },
-  // ✅ REMOVED: fssaiTinPan field
-  fssai: { // ✅ NEW
-    type: String,
-    trim: true,
-  },
-  pan: { // ✅ NEW
-    type: String,
-    trim: true,
-  },
-  gst: { // ✅ NEW
-    type: String,
-    trim: true,
-  },
-  logo: {
-    type: String,
-  },
-  qrCode: {
-    type: String,
-  },
-  mediaUrl: 
-  { type: String, trim: true },
+/**
+ * Mongoose schema & model
+ */
+const StoreSchema = new Schema<IStore>(
+  {
+    storeName: { type: String, required: [true, "Store name is required"], trim: true },
+    address: { type: String, required: [true, "Address is required"], trim: true },
+    city: { type: String, required: [true, "City is required"], trim: true },
+    pincode: { type: String, required: [true, "Pincode is required"] },
+    state: { type: String, required: [true, "State is required"], trim: true },
+    contactNumber: { type: String, required: [true, "Contact number is required"] },
+    email: { type: String, required: [true, "Email is required"] },
 
-  mediaQRCode: { // ✅ NEW
-    type: String,
-  },
-  status: {
-    type: String,
-    enum: ['ACTIVE', 'INACTIVE'],
-    default: 'INACTIVE',
-    required: true,
-  },
-}, { timestamps: true });
+    // optional metadata
+    fssai: { type: String, trim: true },
+    pan: { type: String, trim: true },
+    gst: { type: String, trim: true },
 
-// Ensure only one store can be active at a time
-StoreSchema.pre('save', async function (next) {
-  if (this.isModified('status') && this.status === 'ACTIVE') {
-    // Correctly reference the model
+    // media & codes
+    logo: { type: String },
+    qrCode: { type: String },
+    mediaUrl: { type: String, trim: true },
+    mediaQRCode: { type: String },
+
+    // status
+    status: {
+      type: String,
+      enum: ["ACTIVE", "INACTIVE"],
+      default: "INACTIVE",
+      required: true,
+    },
+  },
+  { timestamps: true }
+);
+
+/**
+ * Pre-save hook: ensure only one store can be ACTIVE
+ */
+StoreSchema.pre("save", async function (next) {
+  // `this` is the document being saved
+  if (this.isModified("status") && this.status === "ACTIVE") {
+    // mark other stores as INACTIVE
     await (this.constructor as mongoose.Model<IStore>).updateMany(
       { _id: { $ne: this._id } },
-      { $set: { status: 'INACTIVE' } }
+      { $set: { status: "INACTIVE" } }
     );
   }
   next();
 });
 
-const Store = models.Store || model<IStore>('Store', StoreSchema);
-
+/**
+ * Export the model as the default export.
+ * Use mongoose.models caching to avoid OverwriteModelError in dev/hot-reload.
+ */
+const Store = (models.Store as mongoose.Model<IStore>) || model<IStore>("Store", StoreSchema);
 export default Store;

@@ -4,8 +4,8 @@ import { create } from 'zustand';
 // 💡 Import the new action and interface
 import { getLowStockVariants, LowStockAlertData } from '@/actions/variant.actions'; 
 
-// Use the imported interface for the store data
-export interface LowStockVariant extends LowStockAlertData {}
+// 💡 FIX: Changed interface to type alias to resolve the empty-object-type error.
+export type LowStockVariant = LowStockAlertData;
 
 interface StockAlertState {
   lowStockVariants: LowStockVariant[];
@@ -26,7 +26,8 @@ export const useStockAlertStore = create<StockAlertState>((set) => ({
 
       if (result.success && result.data) {
         set({
-          lowStockVariants: result.data as LowStockVariant[],
+          // The LowStockAlertData[] type is now assignable to LowStockVariant[]
+          lowStockVariants: result.data as LowStockVariant[], 
           isLoading: false,
         });
       } else {

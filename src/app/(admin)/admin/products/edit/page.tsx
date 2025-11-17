@@ -3,15 +3,17 @@ import { Heading } from "@/components/ui/heading";
 import ProductForm from "@/components/forms/ProductForm";
 import { getProductById } from "@/actions/product.actions";
 
-interface EditProductPageProps {
-  searchParams: {
-    id: string;
-  };
-}
+// ✅ Force dynamic rendering to prevent static build serialization issues
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
 
-const EditProductPage = async ({ searchParams }: EditProductPageProps) => {
-  // Destructure 'id' from searchParams to correctly handle the dynamic API call
-  const { id } = searchParams;
+export default async function EditProductPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ id: string }>;
+}) {
+  const { id } = await searchParams; // ✅ Await the promise to extract id
 
   if (!id) {
     redirect("/admin/products");
@@ -19,8 +21,7 @@ const EditProductPage = async ({ searchParams }: EditProductPageProps) => {
 
   const productResult = await getProductById(id);
 
-  if (!productResult.success) {
-    // Handle case where product is not found or fetching fails
+  if (!productResult.success || !productResult.data) {
     redirect("/admin/products");
   }
 
@@ -32,6 +33,4 @@ const EditProductPage = async ({ searchParams }: EditProductPageProps) => {
       </div>
     </div>
   );
-};
-
-export default EditProductPage;
+}

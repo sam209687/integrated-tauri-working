@@ -45,3 +45,10 @@ Clean cmds
 1. rm -rf .next
 2. rm -rf node_modules
 3. npm cache clean --force
+1. rm -rf .next/cache
+
+
+
+<!-- build cmd of tauri  -->
+
+RUST_MIN_STACK=16777216 RUSTFLAGS="-Clink-arg=-fuse-ld=gold" npm run tauri build

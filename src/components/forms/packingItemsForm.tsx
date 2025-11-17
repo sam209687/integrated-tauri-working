@@ -9,8 +9,8 @@ import { toast } from 'sonner';
 
 import { 
     createPackingMaterial,
-    updatePackingMaterial, // <-- NEW: Import update action
-    deletePackingMaterial, // <-- NEW: Import delete action
+    updatePackingMaterial, 
+    deletePackingMaterial, 
     PackingMaterialWithBalance
 } from "@/actions/packingMaterial.actions";
 import { getUnits } from "@/actions/unit.actions"; 
@@ -19,10 +19,9 @@ import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Trash2 } from "lucide-react"; // <-- NEW: Import Trash icon
+import { Loader2, Trash2 } from "lucide-react"; 
 import { PackingMaterialFormValues, PackingMaterialSchema } from "@/lib/schemas";
 
-// Assuming you have components like AlertDialog for confirmation
 import { 
     AlertDialog, 
     AlertDialogAction, 
@@ -43,13 +42,21 @@ interface UnitOption {
     code: string; 
 }
 
+// 💡 FIX: Define the expected structure of the raw unit data from getUnits
+interface RawUnitData {
+    _id: string; // Could be a mongoose ObjectId, but we treat it as string here for mapping
+    name: string;
+    code: string;
+    // Include other necessary fields if they exist
+}
+
 interface PackingItemsFormProps {
   initialData?: PackingMaterialWithBalance | null;
 }
 
 export function PackingItemsForm({ initialData }: PackingItemsFormProps) {
   const [isPending, startTransition] = useTransition();
-  const [isDeleting, setIsDeleting] = useState(false); // <-- NEW: State for delete loading
+  const [isDeleting, setIsDeleting] = useState(false); 
   const [units, setUnits] = useState<UnitOption[]>([]);
   const router = useRouter();
 
@@ -74,11 +81,12 @@ export function PackingItemsForm({ initialData }: PackingItemsFormProps) {
         try {
             const result = await getUnits(); 
             if (result.success && result.data) {
-                setUnits(result.data.map((u: any) => ({
+                // 💡 FIX: Used RawUnitData type instead of 'any'
+                setUnits(result.data.map((u: RawUnitData) => ({ 
                     _id: u._id.toString(),
                     name: u.name,
                     code: u.code,
-                })) as UnitOption[]);
+                }))); // Removed redundant 'as UnitOption[]' cast 
             } else {
                 toast.error("Failed to load units for dropdown.");
             }

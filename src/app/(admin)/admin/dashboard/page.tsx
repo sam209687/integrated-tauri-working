@@ -1,25 +1,29 @@
 // src/app/(admin)/admin/dashboard/page.tsx
 
-import { DashboardPage } from '@/components/adminPanel/DashboardPage';
-import { getDashboardData } from '@/actions/adminPanel.Actions';
-import { TopBar } from '@/components/adminPanel/topbar'; // Import the TopBar component
-import { DashboardData } from '@/store/adminPanelStore'; // Assuming you need this type for clarity
+import { DashboardPage } from "@/components/adminPanel/DashboardPage";
+import { getDashboardData } from "@/actions/adminPanel.Actions";
+import { DashboardData } from "@/store/adminPanelStore";
+
+// ✅ Prevent Next.js from trying to statically render this page (fixes “Unexpected token '|'”)
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
 
 export default async function Dashboard() {
   const dashboardData = await getDashboardData();
-  
+
   if (!dashboardData.success) {
     return <div>Error: {dashboardData.message}</div>;
   }
 
-  // ✅ FIX: Explicitly cast the data to be either DashboardData or null.
-  // We use the nullish coalescing operator (??) to ensure the type is `DashboardData | null`.
-  const initialDataForProps: DashboardData | null = dashboardData.data ?? null;
+  // ✅ Ensure the data type is consistent and serializable
+  const initialDataForProps: DashboardData | null = dashboardData.data
+    ? JSON.parse(JSON.stringify(dashboardData.data))
+    : null;
 
   return (
     <div className="flex flex-col space-y-4">
-      {/* <TopBar /> Render the TopBar here */}
       <DashboardPage initialData={initialDataForProps} />
     </div>
-  );                  
+  );
 }

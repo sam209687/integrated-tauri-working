@@ -19,6 +19,83 @@ import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { IPopulatedVariant } from "@/lib/models/variant";
 
+// --- FIX START: Extracted logic into a functional React Component ---
+
+interface VariantActionsCellProps {
+  original: IPopulatedVariant;
+}
+
+const VariantActionsCell: React.FC<VariantActionsCellProps> = ({ original }) => {
+  // 💡 FIX 1 & 2: Hooks are now correctly called inside a functional component
+  const [isPending, startTransition] = useTransition();
+  const router = useRouter();
+  const variantId = original._id;
+
+  const onDelete = async () => {
+    startTransition(async () => {
+      const result = await deleteVariant(variantId);
+      if (result.success) {
+        toast.success(result.message);
+        router.refresh(); // Refresh the data in the table
+      } else {
+        toast.error(result.message);
+      }
+    });
+  };
+  
+  const onGenerateQRCode = async () => {
+    startTransition(async () => {
+      const result = await generateVariantQRCode(variantId);
+      if (result.success) {
+        toast.success(result.message);
+        // Assuming QR generation updates the variant, a refresh might be needed
+        // router.refresh(); 
+      } else {
+        toast.error(result.message);
+      }
+    });
+  };
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" className="h-8 w-8 p-0">
+          <span className="sr-only">Open menu</span>
+          ...
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onClick={() => router.push(`/admin/variants/edit/${variantId}`)}
+          disabled={isPending}
+        >
+          <Edit className="mr-2 h-4 w-4" />
+          Edit
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={onGenerateQRCode}
+          disabled={isPending}
+        >
+          <QrCode className="mr-2 h-4 w-4" />
+          Generate QR Code
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={onDelete}
+          disabled={isPending}
+        >
+          <Trash2 className="mr-2 h-4 w-4" />
+          Delete
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};
+
+// --- FIX END ---
+
+
 export const columns: ColumnDef<IPopulatedVariant>[] = [
   {
     accessorKey: "product.productName", 
@@ -73,67 +150,7 @@ export const columns: ColumnDef<IPopulatedVariant>[] = [
   },
   {
     id: "actions",
-    cell: ({ row }) => {
-      const [isPending, startTransition] = useTransition();
-      const router = useRouter();
-
-      const onDelete = async (id: string) => {
-        startTransition(async () => {
-          const result = await deleteVariant(id);
-          if (result.success) {
-            toast.success(result.message);
-          } else {
-            toast.error(result.message);
-          }
-        });
-      };
-      
-      const onGenerateQRCode = async (id: string) => {
-        startTransition(async () => {
-          const result = await generateVariantQRCode(id);
-          if (result.success) {
-            toast.success(result.message);
-          } else {
-            toast.error(result.message);
-          }
-        });
-      };
-
-      return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
-              <span className="sr-only">Open menu</span>
-              ...
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={() => router.push(`/admin/variants/edit/${row.original._id}`)}
-              disabled={isPending}
-            >
-              <Edit className="mr-2 h-4 w-4" />
-              Edit
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => onGenerateQRCode(row.original._id)}
-              disabled={isPending}
-            >
-              <QrCode className="mr-2 h-4 w-4" />
-              Generate QR Code
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => onDelete(row.original._id)}
-              disabled={isPending}
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      );
-    },
+    // 💡 FIX 3: Use the new component inside the cell
+    cell: ({ row }) => <VariantActionsCell original={row.original} />,
   },
 ];

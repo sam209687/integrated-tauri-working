@@ -52,9 +52,11 @@ export function LoginForm() {
         toast.success("Login successful!");
         router.push("/admin/dashboard");
       }
-    } catch (error: any) {
+    } catch (error) { // 💡 FIX: Removed ': any'
+      // Use a type guard to safely handle and display the error message
+      const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred during login.";
       console.error("Unexpected login error:", error);
-      toast.error("An unexpected error occurred during login.");
+      toast.error(errorMessage);
     }
   }
 

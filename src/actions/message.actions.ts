@@ -13,6 +13,22 @@ import { auth } from "@/lib/auth";
 
 const User = getUserModel();
 
+// Define ActionResponse type for consistent returns
+interface ActionResponse<T = void> {
+    success: boolean;
+    data?: T;
+    message?: string;
+    error?: string;
+}
+
+// ✅ FIX: New type for the user data returned by getAllUsersForMessaging
+type UserMessagingData = {
+  _id: Types.ObjectId | string; // Mongoose ID becomes string after JSON.stringify
+  name: string;
+  role: 'admin' | 'cashier' | 'other'; // Assuming roles based on context
+};
+
+
 export const getConversations = async (userId: string) => {
   try {
     await connectToDatabase();
@@ -24,10 +40,9 @@ export const getConversations = async (userId: string) => {
     const currentUserRole = session.user.role;
     const userObjectId = new Types.ObjectId(userId);
 
-    // ✅ FIX 1: Allow the 'name' property to be optional to match the database model.
     type Recipient = {
       _id: Types.ObjectId;
-      name?: string; // Name can be string or undefined
+      name?: string; 
       email: string;
       role: string;
       storeLocation?: string;
@@ -75,10 +90,9 @@ export const getConversations = async (userId: string) => {
     });
 
     const conversations = potentialRecipients.map(user => ({
-      // ✅ FIX 2: Provide a fallback for the name to ensure it's always a string.
       user: {
         ...user,
-        name: user.name || user.email, // Use email if name is missing
+        name: user.name || user.email, 
       },
       unreadCount: unreadMap.get(user._id.toString()) || 0,
       lastMessageAt: null,
@@ -91,11 +105,13 @@ export const getConversations = async (userId: string) => {
   }
 };
 
-export const getAllUsersForMessaging = async () => {
+// 🚀 FIX APPLIED: Changed return type from ActionResponse<any[]> to ActionResponse<UserMessagingData[]>
+export const getAllUsersForMessaging = async (): Promise<ActionResponse<UserMessagingData[]>> => {
     try {
         await connectToDatabase();
         const users = await User.find({}, '_id name role').lean();
-        return { success: true, data: JSON.parse(JSON.stringify(users)) };
+        // Cast the serialized data to the new specific type
+        return { success: true, data: JSON.parse(JSON.stringify(users)) as UserMessagingData[] };
     } catch (error) {
         console.error("Failed to fetch all users:", error);
         return { success: false, message: "Failed to fetch users." };
@@ -162,6 +178,7 @@ export const getTotalUnreadMessages = async (userId: string) => {
     });
     return { success: true, count };
   } catch (error) {
+    console.error("Failed to fetch unread message count:", error); 
     return { success: false, count: 0 };
   }
 };

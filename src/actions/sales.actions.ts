@@ -1,3 +1,4 @@
+// src/actions/sales.actions.ts
 "use server";
 
 import { connectToDatabase } from "@/lib/db";
@@ -39,7 +40,8 @@ export async function getSalesDataByVariant(
         : {};
 
     const salesData = await Invoice.aggregate([
-      { $match: matchStage },
+      // Only include invoices that are not cancelled (assuming a standard 'status' field)
+      { $match: { ...matchStage, status: { $ne: "cancelled" } } }, 
       { $unwind: "$items" },
       {
         $group: {
@@ -62,11 +64,15 @@ export async function getSalesDataByVariant(
     // console.log("✅ [getSalesDataByVariant] Results:", salesData);
 
     return { success: true, data: salesData as VariantSalesData[] };
-  } catch (error: any) {
+  } catch (error) { // 💡 FIX: Removed explicit ': any'
     console.error("❌ [getSalesDataByVariant] Error:", error);
+    
+    // 💡 FIX: Safely extract error message using instanceof Error
+    const errorMessage = error instanceof Error ? error.message : "Failed to fetch sales data (unknown error).";
+    
     return {
       success: false,
-      message: error.message || "Failed to fetch sales data.",
+      message: errorMessage,
     };
   }
 }

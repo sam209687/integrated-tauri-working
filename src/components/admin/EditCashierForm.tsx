@@ -27,6 +27,11 @@ interface EditCashierFormProps {
   cashierId: string;
 }
 
+// Utility function to safely extract error message
+function getErrorMessage(error: unknown, defaultMessage: string = 'An unexpected error occurred.'): string {
+  return error instanceof Error ? error.message : defaultMessage;
+}
+
 export function EditCashierForm({ cashierId }: EditCashierFormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -58,9 +63,10 @@ export function EditCashierForm({ cashierId }: EditCashierFormProps) {
           email: data.email, // Renamed from username
           status: data.status,
         });
-      } catch (err: any) {
-        setError(err.message);
-        toast.error(err.message || 'Error fetching cashier data.');
+      } catch (err) { // 💡 FIX 1: Removed ': any'
+        const errorMessage = getErrorMessage(err, 'Error fetching cashier data.');
+        setError(errorMessage);
+        toast.error(errorMessage);
       } finally {
         setLoading(false);
       }
@@ -88,9 +94,10 @@ export function EditCashierForm({ cashierId }: EditCashierFormProps) {
 
       toast.success("Cashier updated successfully!");
       router.push('/admin/manage-cashiers');
-    } catch (error: any) {
+    } catch (error) { // 💡 FIX 2: Removed ': any'
+      const errorMessage = getErrorMessage(error);
       console.error("Error updating cashier:", error);
-      toast.error(error.message || "An unexpected error occurred.");
+      toast.error(errorMessage);
     }
   }
 

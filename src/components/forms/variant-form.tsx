@@ -1,3 +1,4 @@
+// src/components/forms/variant-form.tsx
 "use client";
 
 import React, { useState, useTransition, useEffect } from "react";
@@ -99,14 +100,19 @@ const VariantForm: React.FC<VariantFormProps> = ({ initialData }) => {
     fetchFormData();
   }, [fetchFormData]);
 
+  // 💡 FIX: React Hook Warnings resolved by watching the field inside the effect
   useEffect(() => {
-    const selectedProductId = form.watch("product");
-    if (selectedProductId) {
-      fetchProductDetails(selectedProductId);
-    } else {
-      useVariantStore.setState({ productDetails: { productCode: "", totalPrice: 0, purchasePrice: 0, sellingPrice: 0 } });
+  const subscription = form.watch((value, { name }) => {
+    if (name === "product" && value.product) {
+      fetchProductDetails(value.product);
+    } else if (name === "product") {
+      useVariantStore.setState({
+        productDetails: { productCode: "", totalPrice: 0, purchasePrice: 0, sellingPrice: 0 },
+      });
     }
-  }, [form.watch("product"), fetchProductDetails]);
+  });
+  return () => subscription.unsubscribe();
+}, [form, fetchProductDetails]);
 
   const calculateDiscount = (price: number, mrp: number): number => {
     if (mrp <= 0) return 0;
@@ -186,7 +192,10 @@ const VariantForm: React.FC<VariantFormProps> = ({ initialData }) => {
       setQrCodePreview(qrCodeUrl);
       toast.success("QR Code generated successfully!");
       form.setValue("qrCode", qrCodeUrl);
-    } catch (err) {
+    } 
+    // 💡 FIX: Add eslint-disable-next-line to ignore unused '_' variable
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    catch (_) { 
       toast.error("Failed to generate QR Code.");
     }
   };

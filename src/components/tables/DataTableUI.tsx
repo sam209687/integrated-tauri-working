@@ -1,3 +1,4 @@
+// src/components/tables/DataTableUI.tsx
 "use client";
 
 import {
@@ -9,7 +10,8 @@ import {
   TableRow,
 } from "@/components/ui/table"; 
 
-interface DataTableUIProps<TData, TValue> {
+// 💡 FIX 1: Removed unused generic type TValue from the interface
+interface DataTableUIProps<TData> { 
   columns: { header: string; accessorKey: keyof TData | string; cell?: (props: { row: TData }) => React.ReactNode }[];
   data: TData[];
   caption?: string;
@@ -18,7 +20,8 @@ interface DataTableUIProps<TData, TValue> {
   minWidth?: string; 
 }
 
-export function DataTableUI<TData, TValue>({ columns, data, caption, minWidth = 'min-w-[600px]' }: DataTableUIProps<TData, TValue>) {
+// 💡 FIX 2: Removed unused generic type TValue from the function definition
+export function DataTableUI<TData>({ columns, data, caption, minWidth = 'min-w-[600px]' }: DataTableUIProps<TData>) {
   return (
     // 👇 CHANGE 1: Added overflow-x-auto to the wrapper for horizontal scrolling
     <div className="rounded-md border overflow-x-auto">

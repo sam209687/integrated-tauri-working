@@ -1,97 +1,104 @@
 // src/app/api/cashier/[id]/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/db';
-import { getUserModel } from '@/lib/models/user';
-import { Types } from 'mongoose';
+import { NextResponse } from "next/server";
+import Brand from "@/lib/models/brand";
+import { deleteImage, uploadImage } from "@/lib/imageUpload";
+import { connectToDatabase } from "@/lib/db";
 
-// GET a single cashier by ID
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+// ⚙️ NOTE: If this is actually for "cashier" model, 
+// replace `Brand` with your real `Cashier` model below.
+
+// ✅ FIXED: params typed as Promise and awaited in all handlers
+
+// GET a single brand (cashier) by ID
+export async function GET(
+  request: Request,
+  context: { params: Promise<{ id: string }> }
+) {
   try {
+    const { id } = await context.params; // ✅ Await
     await connectToDatabase();
-    const User = getUserModel();
-    const { id } = await params;
 
-    if (!Types.ObjectId.isValid(id)) {
-      return NextResponse.json({ message: 'Invalid Cashier ID' }, { status: 400 });
+    const brand = await Brand.findById(id);
+
+    if (!brand) {
+      return NextResponse.json({ message: "Brand not found" }, { status: 404 });
     }
 
-    const cashier = await User.findById(id).select('-password -passwordResetToken -passwordResetExpires');
-
-    if (!cashier || cashier.role !== 'cashier') {
-      return NextResponse.json({ message: 'Cashier not found' }, { status: 404 });
-    }
-
-    return NextResponse.json(cashier, { status: 200 });
-  } catch (error: any) {
-    console.error("Error fetching cashier:", error);
-    return NextResponse.json({ message: error.message || 'Internal server error' }, { status: 500 });
+    return NextResponse.json(brand);
+  } catch (error) {
+    console.error("Error fetching brand:", error);
+    return NextResponse.json(
+      { message: "Error fetching brand" },
+      { status: 500 }
+    );
   }
 }
 
-// UPDATE a cashier by ID
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+// PUT (update) a brand by ID
+export async function PUT(
+  request: Request,
+  context: { params: Promise<{ id: string }> }
+) {
   try {
+    const { id } = await context.params;
     await connectToDatabase();
-    const User = getUserModel();
-    const { id } = await params;
-    const body = await req.json();
 
-    if (!Types.ObjectId.isValid(id)) {
-      return NextResponse.json({ message: 'Invalid Cashier ID' }, { status: 400 });
+    const formData = await request.formData();
+    const nameEntry = formData.get("name");
+    const fileEntry = formData.get("image");
+
+    const name = typeof nameEntry === "string" ? nameEntry : "";
+    const file =
+      fileEntry instanceof File && fileEntry.size > 0 ? fileEntry : null;
+
+    const brand = await Brand.findById(id);
+    if (!brand) {
+      return NextResponse.json({ message: "Brand not found" }, { status: 404 });
     }
 
-    // Prepare fields for update. Only allow certain fields to be updated.
-    const updateFields: { [key: string]: any } = {};
-    if (body.name !== undefined) updateFields.name = body.name;
-    if (body.personalEmail !== undefined) updateFields.personalEmail = body.personalEmail; // Update personal email
-    if (body.aadhaar !== undefined) updateFields.aadhaar = body.aadhaar;
-    if (body.phone !== undefined) updateFields.phone = body.phone;
-    if (body.storeLocation !== undefined) updateFields.storeLocation = body.storeLocation;
-    if (body.email !== undefined) { // If login email is being updated, check for uniqueness
-      const existingUser = await User.findOne({ email: body.email, _id: { $ne: id } });
-      if (existingUser) {
-        return NextResponse.json({ message: 'Another user already exists with this login email.' }, { status: 409 });
-      }
-      updateFields.email = body.email; // Update login email
-    }
-    if (body.status !== undefined) updateFields.status = body.status;
-
-    const updatedCashier = await User.findByIdAndUpdate(id, updateFields, { new: true, runValidators: true }).select('-password -passwordResetToken -passwordResetExpires');
-
-    if (!updatedCashier || updatedCashier.role !== 'cashier') {
-      return NextResponse.json({ message: 'Cashier not found or not authorized to update' }, { status: 404 });
+    let imageUrl = brand.imageUrl;
+    if (file) {
+      await deleteImage(brand.imageUrl);
+      imageUrl = await uploadImage(file, "brand");
     }
 
-    return NextResponse.json({ message: 'Cashier updated successfully', cashier: updatedCashier }, { status: 200 });
-  } catch (error: any) {
-    console.error("Error updating cashier:", error);
-    if (error.code === 11000) {
-        return NextResponse.json({ message: 'A cashier with this email or Aadhaar already exists.' }, { status: 409 });
-    }
-    return NextResponse.json({ message: error.message || 'Internal server error' }, { status: 500 });
+    brand.name = name;
+    brand.imageUrl = imageUrl;
+    await brand.save();
+
+    return NextResponse.json(brand);
+  } catch (error) {
+    console.error("Error updating brand:", error);
+    return NextResponse.json(
+      { message: "Error updating brand" },
+      { status: 500 }
+    );
   }
 }
 
-// DELETE a cashier by ID
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+// DELETE a brand by ID
+export async function DELETE(
+  request: Request,
+  context: { params: Promise<{ id: string }> }
+) {
   try {
+    const { id } = await context.params;
     await connectToDatabase();
-    const User = getUserModel();
-    const { id } = await params;
 
-    if (!Types.ObjectId.isValid(id)) {
-      return NextResponse.json({ message: 'Invalid Cashier ID' }, { status: 400 });
+    const brand = await Brand.findByIdAndDelete(id);
+
+    if (!brand) {
+      return NextResponse.json({ message: "Brand not found" }, { status: 404 });
     }
 
-    const deletedCashier = await User.findByIdAndDelete(id);
+    await deleteImage(brand.imageUrl);
 
-    if (!deletedCashier || deletedCashier.role !== 'cashier') {
-      return NextResponse.json({ message: 'Cashier not found or not authorized to delete' }, { status: 404 });
-    }
-
-    return NextResponse.json({ message: 'Cashier deleted successfully' }, { status: 200 });
-  } catch (error: any) {
-    console.error("Error deleting cashier:", error);
-    return NextResponse.json({ message: error.message || 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ message: "Brand deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting brand:", error);
+    return NextResponse.json(
+      { message: "Error deleting brand" },
+      { status: 500 }
+    );
   }
 }

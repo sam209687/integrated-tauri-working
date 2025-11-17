@@ -1,20 +1,23 @@
-import { create } from 'zustand';
-import { getProductsForBatch, deleteBatch as deleteBatchAction, getBatches } from '@/actions/batch.actions';
-import { IBatch } from '@/lib/models/batch';
-import { IPopulatedProduct } from '@/lib/models/product';
-import { IPopulatedVariant } from '@/lib/models/variant';
-import { ICategory } from '@/lib/models/category';
-import { getCategories } from '@/actions/product.actions';
-import { toast } from 'sonner';
+import { create } from "zustand";
+import {
+  getProductsForBatch,
+  deleteBatch,
+  getBatches,
+} from "@/actions/batch.actions";
+import { IPopulatedProduct } from "@/lib/models/product";
+import { ICategory } from "@/lib/models/category";
+import { getCategories } from "@/actions/product.actions";
+import { toast } from "sonner";
 
+// ✅ Lightweight product type for store state
 interface IProduct {
   _id: string;
   productName: string;
   productCode: string;
-  category: ICategory; 
+  category: ICategory;
 }
 
-// ✅ FIX: Define a clean, non-extending populated batch interface
+// ✅ Fully-populated batch type
 export interface IPopulatedBatch {
   _id: string;
   product: IPopulatedProduct;
@@ -31,16 +34,17 @@ export interface IPopulatedBatch {
 interface BatchStoreState {
   products: IProduct[];
   batches: IPopulatedBatch[];
-  categories: ICategory[]; 
+  categories: ICategory[];
   isLoading: boolean;
-  isDeleting: boolean; 
+  isDeleting: boolean;
   selectedProductCode: string | null;
+
   fetchProducts: () => Promise<void>;
-  fetchBatches: () => Promise<void>; 
+  fetchBatches: () => Promise<void>;
   fetchCategories: () => Promise<void>;
   setBatches: (batches: IPopulatedBatch[]) => void;
   updateBatch: (updatedBatch: IPopulatedBatch) => void;
-  deleteBatch: (batchId: string) => Promise<void>; 
+  deleteBatch: (batchId: string) => Promise<void>;
   setSelectedProductCode: (code: string | null) => void;
 }
 
@@ -51,56 +55,62 @@ export const useBatchStore = create<BatchStoreState>((set) => ({
   isLoading: false,
   isDeleting: false,
   selectedProductCode: null,
-  
+
+  /** ✅ Fetch all products for dropdowns in BatchForm */
   fetchProducts: async () => {
     set({ isLoading: true });
     try {
       const result = await getProductsForBatch();
-      if (result.success) {
+      if (result.success && result.data) {
         set({ products: result.data, isLoading: false });
       } else {
-        toast.error(result.message);
+        toast.error(result.message || "Failed to fetch products.");
         set({ isLoading: false, products: [] });
       }
     } catch (error) {
-      console.error('Failed to fetch products:', error);
-      toast.error("Failed to fetch products due to an unexpected error.");
+      console.error("❌ Failed to fetch products:", error);
+      toast.error("Unexpected error while fetching products.");
       set({ isLoading: false, products: [] });
     }
   },
 
+  /** ✅ Fetch all batches for tables */
   fetchBatches: async () => {
     set({ isLoading: true });
     try {
       const result = await getBatches();
-      if (result.success) {
-        set({ batches: result.data as IPopulatedBatch[], isLoading: false });
+      if (result.success && result.data) {
+        set({ batches: result.data, isLoading: false });
       } else {
-        toast.error(result.message);
+        toast.error(result.message || "Failed to fetch batches.");
         set({ isLoading: false, batches: [] });
       }
     } catch (error) {
-      console.error('Failed to fetch batches:', error);
-      toast.error("Failed to fetch batches due to an unexpected error.");
+      console.error("❌ Failed to fetch batches:", error);
+      toast.error("Unexpected error while fetching batches.");
       set({ isLoading: false, batches: [] });
     }
   },
 
+  /** ✅ Fetch categories used for product filtering */
   fetchCategories: async () => {
     try {
       const result = await getCategories();
-      if (result.success) {
+      if (result.success && result.data) {
         set({ categories: result.data });
       } else {
-        toast.error(result.message);
+        toast.error(result.message || "Failed to fetch categories.");
       }
     } catch (error) {
-      console.error("Failed to fetch categories:", error);
+      console.error("❌ Failed to fetch categories:", error);
+      toast.error("Unexpected error while fetching categories.");
     }
   },
 
+  /** ✅ Replace all batches */
   setBatches: (batches) => set({ batches }),
 
+  /** ✅ Update one batch in place */
   updateBatch: (updatedBatch) => {
     set((state) => ({
       batches: state.batches.map((b) =>
@@ -109,23 +119,28 @@ export const useBatchStore = create<BatchStoreState>((set) => ({
     }));
   },
 
+  /** ✅ Delete a batch by ID */
   deleteBatch: async (batchId) => {
     set({ isDeleting: true });
     try {
-      const result = await deleteBatchAction(batchId);
+      const result = await deleteBatch(batchId);
       if (result.success) {
         toast.success(result.message);
-        set((state) => ({ batches: state.batches.filter(b => b._id.toString() !== batchId), isDeleting: false }));
+        set((state) => ({
+          batches: state.batches.filter((b) => b._id.toString() !== batchId),
+          isDeleting: false,
+        }));
       } else {
-        toast.error(result.message);
+        toast.error(result.message || "Failed to delete batch.");
         set({ isDeleting: false });
       }
     } catch (error) {
-      console.error('Failed to delete batch:', error);
-      toast.error("Failed to delete batch due to an unexpected error.");
+      console.error("❌ Failed to delete batch:", error);
+      toast.error("Unexpected error while deleting batch.");
       set({ isDeleting: false });
     }
   },
 
+  /** ✅ Used for batch number generation */
   setSelectedProductCode: (code) => set({ selectedProductCode: code }),
 }));

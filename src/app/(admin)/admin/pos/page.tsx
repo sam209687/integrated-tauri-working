@@ -1,4 +1,3 @@
-// src/app/(admin)/admin/pos/page.tsx
 "use client";
 
 import { Searchbar } from "@/components/pos/Searchbar";
@@ -8,30 +7,54 @@ import { PrintPreview } from "@/components/pos/PrintPreview";
 
 export default function POSPage() {
   return (
-    <div className="w-full h-[100vh] p-4 bg-gray-800 flex flex-col space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold tracking-tight text-white">Point of Sale</h2>
-      </div>
+    <div className="relative w-full h-screen flex flex-col bg-gray-950 text-gray-100">
+      {/* ===== Fixed Header ===== */}
+      <header className="sticky top-0 z-50 bg-gray-950 border-b border-gray-800 p-4 flex items-center justify-between shadow-md">
+        <h2 className="text-3xl font-bold tracking-tight">Point of Sale</h2>
+      </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1">
-        {/* Searchbar Section */}
-        <div className="h-[450px] bg-gray-900 rounded-lg overflow-hidden">
-          <Searchbar />
+      {/* ===== Scrollable Content Area ===== */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {/* ===== Search + Billing Grid ===== */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-[50vh]">
+          {/* --- Product Search --- */}
+          <div className="flex flex-col bg-gray-900 rounded-xl shadow-lg overflow-hidden">
+            <div className="p-4 border-b border-gray-800">
+              <h3 className="text-lg font-semibold text-gray-200">
+                Product List
+              </h3>
+            </div>
+            <div className="flex-1 overflow-auto p-2">
+              <Searchbar />
+            </div>
+          </div>
+
+          {/* --- Billing Section --- */}
+          <div className="flex flex-col bg-gray-900 rounded-xl shadow-lg overflow-hidden">
+            <div className="p-4 border-b border-gray-800">
+              <h3 className="text-lg font-semibold text-gray-200">
+                Billing Section
+              </h3>
+            </div>
+            <div className="flex-1 overflow-auto p-2">
+              <BillingSection />
+            </div>
+          </div>
         </div>
 
-        {/* Billing Section */}
-        <div className="h-[450px] bg-gray-900 rounded-lg overflow-hidden">
-          <BillingSection />
+        {/* ===== Live Cart Section ===== */}
+        <div className="bg-gray-900 rounded-xl shadow-lg overflow-hidden flex flex-col flex-1">
+          <div className="p-4 border-b border-gray-800">
+            <h3 className="text-lg font-semibold text-gray-200">Live Cart</h3>
+          </div>
+          <div className="flex-1 overflow-auto p-2">
+            <LiveCart />
+          </div>
         </div>
       </div>
 
-      {/* Live Cart Section */}
-      <div className="flex-1 w-full mt-4">
-        <LiveCart />
-      </div>
-
-      {/* Print Preview section  */}
-       <PrintPreview />
+      {/* ===== Print Preview Modal (renders over everything) ===== */}
+      <PrintPreview />
     </div>
   );
 }

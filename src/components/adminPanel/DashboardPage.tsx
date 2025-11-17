@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { RefreshCcw } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
 import dynamic from "next/dynamic";
-import { format, subDays, startOfDay, endOfDay } from "date-fns"; 
+import { subDays, startOfDay, endOfDay } from "date-fns"; 
 
 import {
   getSalesDataByVariant,
@@ -19,7 +19,8 @@ import { MonthlySalesChart } from "./MonthlySalesChart";
 import { CustomerDetailsTable } from "./CustomerDetailsTable"; 
 import { SalesTrackingMetrics } from "./SalesTrackingMetrics";
 import { DashboardFilter } from "./DashboardFilter";
-import { PermanentCalendarCard } from "./PermanentCalendarCard";
+// 💡 IMPORTANT: Ensure this import path is correct based on your file structure
+// import { PermanentCalendarCard } from "../PermanentCalendarCard"; 
 import { StockAlertCard } from "./StockAlertCard";
 import { BoardPriceCard } from "./BoardPriceCard"; 
 
@@ -28,6 +29,7 @@ import { useCustomerDetailsStore } from "@/store/customerDetails.store";
 import { useStockAlertStore } from "@/store/stockAlert.store"; 
 import { useBoardPriceStore } from "@/store/boardPrice.store"; 
 import { PackingMaterialAlertCard } from "./PackingMaterialAlertCard";
+import { PermanentCalendarCard } from "./PermanentCalendarCard";
 
 
 const DynamicSalesOverviewChart = dynamic(
@@ -58,6 +60,16 @@ interface AllMetrics {
 // Helper functions for initializing the default 'Last 7 Days' filter
 const getStartOfLast7Days = () => startOfDay(subDays(new Date(), 7));
 const getEndOfToday = () => endOfDay(new Date());
+
+// 💡 FIX: Move chartColors definition outside the component
+const chartColors = [
+    "#8884d8",
+    "#82ca9d",
+    "#ffc658",
+    "#ff8042",
+    "#AF19FF",
+    "#FF008C",
+];
 
 
 export function DashboardPage({ initialData }: DashboardPageProps) {
@@ -108,15 +120,7 @@ export function DashboardPage({ initialData }: DashboardPageProps) {
   const [fromDate, setFromDate] = useState<Date | undefined>(getStartOfLast7Days());
   const [toDate, setToDate] = useState<Date | undefined>(getEndOfToday());
 
-  const chartColors = [
-    "#8884d8",
-    "#82ca9d",
-    "#ffc658",
-    "#ff8042",
-    "#AF19FF",
-    "#FF008C",
-  ];
-
+  
   // Callback to update filter dates and type when DashboardFilter changes
   const handleFilterChange = useCallback(
     (filterType: string, newFromDate?: Date, newToDate?: Date) => {
@@ -172,10 +176,11 @@ export function DashboardPage({ initialData }: DashboardPageProps) {
             ? financialResult.data.totalDeposits
             : 0;
             
-        const depositableCharges = 
+        // Check if new depositable charges exist. If not, we fall back to the existing charges.
+        const newDepositableCharges = 
             financialResult.success && financialResult.data && financialResult.data.depositableCharges
             ? financialResult.data.depositableCharges
-            : allMetrics.depositableCharges;
+            : null; // Set to null to clearly indicate no new data
 
         if (salesResult.success && salesResult.data) {
           const processedData = salesResult.data.map((item, index) => ({
@@ -186,19 +191,23 @@ export function DashboardPage({ initialData }: DashboardPageProps) {
         }
 
         if (basicMetricsResult.success && basicMetricsResult.data) {
-          setAllMetrics({
-            ...basicMetricsResult.data,
-            totalProfit,
-            totalDeposits,
-            depositableCharges, 
-          });
+            // Use functional update to safely access previous state
+            setAllMetrics((prev) => ({
+                ...basicMetricsResult.data,
+                totalProfit,
+                totalDeposits,
+                // Use new charges if available, otherwise use previous state's charges
+                depositableCharges: newDepositableCharges || prev.depositableCharges, 
+            }));
         } else {
-          setAllMetrics((prev) => ({
-            ...prev,
-            totalProfit,
-            totalDeposits,
-            depositableCharges,
-          }));
+            // Use functional update to safely access previous state
+            setAllMetrics((prev) => ({
+                ...prev,
+                totalProfit,
+                totalDeposits,
+                // Use new charges if available, otherwise use previous state's charges
+                depositableCharges: newDepositableCharges || prev.depositableCharges,
+            }));
         }
 
       } catch (err) {
@@ -214,7 +223,8 @@ export function DashboardPage({ initialData }: DashboardPageProps) {
     fetchMonthlySales, 
     fetchCustomerDetails,
     fetchLowStockAlerts,
-    fetchBoardPrices 
+    fetchBoardPrices,
+    // chartColors is now stable and does not need to be listed
   ]); 
 
   if (isLoading || !dashboardData || isMonthlySalesLoading || isCustomerLoading || isStockAlertLoading || isBoardPriceLoading) {
@@ -260,6 +270,7 @@ export function DashboardPage({ initialData }: DashboardPageProps) {
           <DynamicSalesOverviewChart data={salesData} />
         </div>
         <div className="lg:col-span-2">
+          {/* 🟢 FIX: Props are correctly passed here and accepted by PermanentCalendarCard */}
           <PermanentCalendarCard
             selectedDate={toDate}
             onDateChange={handleCalendarDateChange}
