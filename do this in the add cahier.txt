@@ -73,5 +73,3 @@ so make thew prize and upload field in the src/components/offers/uploadPrize.tsx
 
 no create store action routes and model files for this component as we have made for each component
 if any assistance required ask for reference
-
-
