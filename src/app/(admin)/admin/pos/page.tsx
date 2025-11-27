@@ -4,6 +4,7 @@ import { Searchbar } from "@/components/pos/Searchbar";
 import { BillingSection } from "@/components/pos/BillingSection";
 import { LiveCart } from "@/components/pos/LiveCart";
 import { PrintPreview } from "@/components/pos/PrintPreview";
+import { OfferBanner } from "@/components/pos/OfferBanner";
 
 export default function POSPage() {
   return (
@@ -15,6 +16,9 @@ export default function POSPage() {
 
       {/* ===== Scrollable Content Area ===== */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {/* ===== Active Offers Banner ===== */}
+        <OfferBanner />
+
         {/* ===== Search + Billing Grid ===== */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-[50vh]">
           {/* --- Product Search --- */}

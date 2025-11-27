@@ -60,7 +60,19 @@ const numberInputStyles = `
 const VariantForm: React.FC<VariantFormProps> = ({ initialData }) => {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const { products, units, fetchFormData, fetchProductDetails, productDetails, isLoading } = useVariantStore();
+  
+  // Zustand store
+  const { 
+    products, 
+    units, 
+    productDetails, 
+    isLoading,
+    fetchFormData, 
+    fetchProductDetails,
+    updateCalculatedPricing,
+    resetProductDetails,
+    resetCalculatedPricing,
+  } = useVariantStore();
 
   const [imagePreview, setImagePreview] = useState<string | null>(
     initialData?.image || null
@@ -96,33 +108,30 @@ const VariantForm: React.FC<VariantFormProps> = ({ initialData }) => {
     } as VariantFormValues,
   });
 
+  // Effect 1: Fetch form data once on mount
   useEffect(() => {
     fetchFormData();
-  }, [fetchFormData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // 💡 FIX: React Hook Warnings resolved by watching the field inside the effect
-  useEffect(() => {
-  const subscription = form.watch((value, { name }) => {
-    if (name === "product" && value.product) {
-      fetchProductDetails(value.product);
-    } else if (name === "product") {
-      useVariantStore.setState({
-        productDetails: { productCode: "", totalPrice: 0, purchasePrice: 0, sellingPrice: 0 },
-      });
-    }
-  });
-  return () => subscription.unsubscribe();
-}, [form, fetchProductDetails]);
-
-  const calculateDiscount = (price: number, mrp: number): number => {
-    if (mrp <= 0) return 0;
-    return Math.round(((mrp - price) / mrp) * 100);
-  };
-
+  // Effect 2: Handle product selection changes
   useEffect(() => {
     const subscription = form.watch((value, { name }) => {
-      const fieldsToWatch = [
-        "product",
+      if (name === "product") {
+        if (value.product) {
+          fetchProductDetails(value.product);
+        } else {
+          resetProductDetails();
+        }
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [form, fetchProductDetails, resetProductDetails]);
+
+  // Effect 3: Handle price calculation when charges or unitConsumed change
+  useEffect(() => {
+    const subscription = form.watch((value, { name }) => {
+      const priceCalculationFields = [
         "unitConsumed",
         "packingCharges",
         "laborCharges",
@@ -131,29 +140,41 @@ const VariantForm: React.FC<VariantFormProps> = ({ initialData }) => {
         "others2"
       ];
       
-      if (fieldsToWatch.includes(name as string)) {
-        const sellingPrice = (productDetails.sellingPrice || 0);
-        const unitConsumed = (Number(value.unitConsumed) || 0);
+      if (priceCalculationFields.includes(name as string)) {
+        const result = updateCalculatedPricing({
+          unitConsumed: Number(value.unitConsumed) || 0,
+          packingCharges: Number(value.packingCharges) || 0,
+          laborCharges: Number(value.laborCharges) || 0,
+          electricityCharges: Number(value.electricityCharges) || 0,
+          others1: Number(value.others1) || 0,
+          others2: Number(value.others2) || 0,
+          mrp: Number(value.mrp) || 0,
+        });
         
-        // Price calculation logic
-        const newPrice = (unitConsumed * sellingPrice) + 
-                         (Number(value.packingCharges) || 0) + 
-                         (Number(value.laborCharges) || 0) + 
-                         (Number(value.electricityCharges) || 0) +
-                         (Number(value.others1) || 0) + 
-                         (Number(value.others2) || 0); 
-        form.setValue("price", newPrice);
+        form.setValue("price", result.price);
+        form.setValue("discount", result.discount);
       }
 
+      // Handle discount calculation when price or MRP changes
       if (name === "price" || name === "mrp") {
-        const price = Number(value.price);
-        const mrp = Number(value.mrp);
-        const calculatedDiscount = calculateDiscount(price, mrp);
-        form.setValue("discount", calculatedDiscount);
+        const result = updateCalculatedPricing({
+          price: Number(value.price) || 0,
+          mrp: Number(value.mrp) || 0,
+        });
+        
+        form.setValue("discount", result.discount);
       }
     });
     return () => subscription.unsubscribe();
-  }, [form, productDetails]);
+  }, [form, updateCalculatedPricing]);
+
+  // Effect 4: Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      resetProductDetails();
+      resetCalculatedPricing();
+    };
+  }, [resetProductDetails, resetCalculatedPricing]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -192,10 +213,8 @@ const VariantForm: React.FC<VariantFormProps> = ({ initialData }) => {
       setQrCodePreview(qrCodeUrl);
       toast.success("QR Code generated successfully!");
       form.setValue("qrCode", qrCodeUrl);
-    } 
-    // 💡 FIX: Add eslint-disable-next-line to ignore unused '_' variable
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    catch (_) { 
+    } catch (error) {
+      console.error("QR Code generation error:", error);
       toast.error("Failed to generate QR Code.");
     }
   };
@@ -224,7 +243,7 @@ const VariantForm: React.FC<VariantFormProps> = ({ initialData }) => {
       if (qrCodePreview) {
         const qrCodeBlob = await fetch(qrCodePreview).then(res => res.blob());
         const qrCodeFormData = new FormData();
-        qrCodeFormData.append("file", new File([qrCodeBlob], 'variant-qr..png', { type: 'image/png' }));
+        qrCodeFormData.append("file", new File([qrCodeBlob], 'variant-qr.png', { type: 'image/png' }));
         const res = await fetch("/api/upload", { method: "POST", body: qrCodeFormData });
         const data = await res.json();
         if (data.success) {
@@ -295,7 +314,7 @@ const VariantForm: React.FC<VariantFormProps> = ({ initialData }) => {
                   <Select
                     onValueChange={field.onChange}
                     defaultValue={field.value}
-                    disabled={isPending || isEditing} // Disable product change in edit mode
+                    disabled={isPending || isEditing}
                   >
                     <FormControl>
                       <SelectTrigger>
@@ -572,142 +591,101 @@ const VariantForm: React.FC<VariantFormProps> = ({ initialData }) => {
           <Separator className="my-6" />
 
           {/* Charges Section */}
-          <h2 className="text-xl font-semibold text-gray-700">Operational Charges</h2>
-          <span className="text-sm text-gray-500 block mb-4">
-            These fields contribute to the calculated **Price of Variant**.
-          </span>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-             <FormField
-              control={form.control}
-              name="packingCharges"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Packing Charges</FormLabel>
-                  <FormControl>
-                    <Input type="number" step="0.01" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="laborCharges"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Labor Charges</FormLabel>
-                  <FormControl>
-                    <Input type="number" step="0.01" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="electricityCharges"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Electricity Charges</FormLabel>
-                  <FormControl>
-                    <Input type="number" step="0.01" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="others1"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Oil Expelling Charges</FormLabel>
-                  <FormControl>
-                    <Input type="number" step="0.01" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="others2"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Others</FormLabel>
-                  <FormControl>
-                    <Input type="number" step="0.01" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-          <Separator className="my-6" />
 
-          {/* Media Section */}
-          <h2 className="text-xl font-semibold text-gray-700">Media and Identification</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <FormField
-              control={form.control}
-              name="image"
-              render={() => (
-                <FormItem>
-                  <FormLabel>Variant Image</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="file"
-                      onChange={handleImageChange}
-                      disabled={isPending}
-                    />
-                  </FormControl>
-                  {imagePreview && (
-                    <div className="relative w-48 h-48 mt-2 border rounded-lg p-1">
-                      <Image
-                        src={imagePreview}
-                        alt="Image Preview"
-                        fill
-                        style={{ objectFit: "contain" }}
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          setImagePreview(null);
-                          setImageFile(null);
-                          form.setValue("image", undefined);
-                        }}
-                        className="absolute top-0 right-0 p-1 bg-white rounded-full shadow-md"
-                      >
-                        <XCircle className="h-4 w-4 text-red-500" />
-                      </Button>
-                    </div>
-                  )}
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <div>
-              <FormLabel>QR Code</FormLabel>
-              <p className="text-sm text-muted-foreground mb-2">
-                Generate or upload a QR code for quick scanning.
-              </p>
-              <div className="flex space-x-2">
-                <Button
-                  type="button"
-                  onClick={onGenerateQrCode}
+           <h2 className="text-xl font-semibold text-gray-700">Operational Charges</h2>
+      <span className="text-sm text-gray-500 block mb-4">
+        These fields contribute to the calculated **Price of Variant**.
+      </span>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+         <FormField
+          control={form.control}
+          name="packingCharges"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Packing Charges</FormLabel>
+              <FormControl>
+                <Input type="number" step="0.01" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="laborCharges"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Labor Charges</FormLabel>
+              <FormControl>
+                <Input type="number" step="0.01" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="electricityCharges"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Electricity Charges</FormLabel>
+              <FormControl>
+                <Input type="number" step="0.01" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="others1"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Oil Expelling Charges</FormLabel>
+              <FormControl>
+                <Input type="number" step="0.01" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="others2"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Others</FormLabel>
+              <FormControl>
+                <Input type="number" step="0.01" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      </div>
+      <Separator className="my-6" />
+
+      {/* Media Section */}
+      <h2 className="text-xl font-semibold text-gray-700">Media and Identification</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <FormField
+          control={form.control}
+          name="image"
+          render={() => (
+            <FormItem>
+              <FormLabel>Variant Image</FormLabel>
+              <FormControl>
+                <Input
+                  type="file"
+                  onChange={handleImageChange}
                   disabled={isPending}
-                  className="bg-green-600 hover:bg-green-700"
-                >
-                  <QrCode className="mr-2 h-4 w-4" /> Generate QR Code
-                </Button>
-              </div>
-              {qrCodePreview && (
-                <div className="relative w-48 h-48 mt-4 border rounded-lg p-1">
+                />
+              </FormControl>
+              {imagePreview && (
+                <div className="relative w-48 h-48 mt-2 border rounded-lg p-1">
                   <Image
-                    src={qrCodePreview}
-                    alt="QR Code Preview"
+                    src={imagePreview}
+                    alt="Image Preview"
                     fill
                     style={{ objectFit: "contain" }}
                   />
@@ -716,8 +694,9 @@ const VariantForm: React.FC<VariantFormProps> = ({ initialData }) => {
                     variant="ghost"
                     size="icon"
                     onClick={() => {
-                      setQrCodePreview(null);
-                      form.setValue("qrCode", undefined);
+                      setImagePreview(null);
+                      setImageFile(null);
+                      form.setValue("image", undefined);
                     }}
                     className="absolute top-0 right-0 p-1 bg-white rounded-full shadow-md"
                   >
@@ -725,35 +704,75 @@ const VariantForm: React.FC<VariantFormProps> = ({ initialData }) => {
                   </Button>
                 </div>
               )}
-            </div>
-          </div>
-          
-          <div className="flex justify-end gap-2 pt-8">
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <div>
+          <FormLabel>QR Code</FormLabel>
+          <p className="text-sm text-muted-foreground mb-2">
+            Generate or upload a QR code for quick scanning.
+          </p>
+          <div className="flex space-x-2">
             <Button
               type="button"
-              variant="outline"
-              onClick={() => router.back()}
+              onClick={onGenerateQrCode}
               disabled={isPending}
+              className="bg-green-600 hover:bg-green-700"
             >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isPending} className="min-w-[150px]">
-              {isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Please wait...
-                </>
-              ) : isEditing ? (
-                "Update Variant"
-              ) : (
-                "Add Variant"
-              )}
+              <QrCode className="mr-2 h-4 w-4" /> Generate QR Code
             </Button>
           </div>
-        </form>
-      </Form>
-    </>
-  );
+          {qrCodePreview && (
+            <div className="relative w-48 h-48 mt-4 border rounded-lg p-1">
+              <Image
+                src={qrCodePreview}
+                alt="QR Code Preview"
+                fill
+                style={{ objectFit: "contain" }}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => {
+                  setQrCodePreview(null);
+                  form.setValue("qrCode", undefined);
+                }}
+                className="absolute top-0 right-0 p-1 bg-white rounded-full shadow-md"
+              >
+                <XCircle className="h-4 w-4 text-red-500" />
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+      
+      <div className="flex justify-end gap-2 pt-8">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => router.back()}
+          disabled={isPending}
+        >
+          Cancel
+        </Button>
+        <Button type="submit" disabled={isPending} className="min-w-[150px]">
+          {isPending ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Please wait...
+            </>
+          ) : isEditing ? (
+            "Update Variant"
+          ) : (
+            "Add Variant"
+          )}
+        </Button>
+      </div>
+    </form>
+  </Form>
+</>
+);
 };
-
 export default VariantForm;

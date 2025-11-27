@@ -1,4 +1,4 @@
-// src/components/BillingSection.tsx
+// src/components/pos/BillingSection.tsx
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from "react";
@@ -11,29 +11,47 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Loader2, ShoppingCart } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Loader2, Trophy, Sparkles, X, Gift } from "lucide-react";
 
 import { usePosStore } from "@/store/posStore";
 import { useOecStore } from "@/store/oecStore";
 import { useCustomerStore } from "@/store/customerStore";
 import { usePrintStore } from "@/store/printStore";
 import { useSuggestionStore } from "@/store/suggestionStore";
+
 import { createInvoice, InvoiceDataPayload } from "@/actions/invoice.actions";
 import { useDebounce } from "@/hooks/use-debounce";
-import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+
+import BillingSectionSecond from "./BillingSectionSecond";
+import type { ProductSuggestion } from "@/types/ProductSuggestion";
+import { IInvoiceOfferQualification } from "@/lib/models/invoice";
+
+type SuggestedVariantFromStore = {
+  _id: string;
+  productName?: string;
+  name?: string;
+  variantVolume?: string | number;
+  price: number;
+  product?: { productName: string } | null;
+  unit?: { name: string } | null;
+};
+
+type InvoiceToSend = {
+  invoiceNumber: string;
+  items: InvoiceDataPayload["items"];
+  totalPayable: number;
+  offerQualifications?: IInvoiceOfferQualification[]; // ✅ Add this
+};
 
 export function BillingSection() {
   const { data: session } = useSession();
-
-  // ✅ 1. Create a ref for the input element
   const inputRef = useRef<HTMLInputElement>(null);
 
   const {
@@ -43,11 +61,11 @@ export function BillingSection() {
     isGstEnabled,
     toggleGst,
     addToCart,
-    // ✅ NEW: Destructure the stock update action
     updateStocksAfterSale,
   } = usePosStore();
-  
+
   const { oecs, fetchOecs } = useOecStore();
+
   const {
     phone,
     name,
@@ -67,6 +85,7 @@ export function BillingSection() {
   } = useCustomerStore();
 
   const { openModal } = usePrintStore();
+
   const {
     suggestedProducts,
     fetchSuggestions,
@@ -77,11 +96,6 @@ export function BillingSection() {
   const [isSaving, setIsSaving] = useState(false);
   const [selectedOecId, setSelectedOecId] = useState<string | null>(null);
   const [oecQuantity, setOecQuantity] = useState<number>(0);
-
-  useEffect(() => {
-    fetchOecs();
-  }, [fetchOecs]);
-
   const [discount, setDiscount] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "upi" | "card">(
     "cash"
@@ -90,27 +104,39 @@ export function BillingSection() {
   const [isOilExpelling, setIsOilExpelling] = useState(false);
   const [excludePacking, setExcludePacking] = useState(false);
 
-  // Debounce hook for search-as-you-type API calls
+  // ✅ Offer Modal State
+  const [showOfferModal, setShowOfferModal] = useState(false);
+  const [offerQualifications, setOfferQualifications] = useState<
+    IInvoiceOfferQualification[]
+  >([]);
+  const [customerNameForOffer, setCustomerNameForOffer] = useState("");
+
+  useEffect(() => {
+    fetchOecs();
+  }, [fetchOecs]);
+
   const debouncedPhonePrefix = useDebounce(phone, 300);
 
   const subtotal = useMemo(
     () => cart.reduce((acc, item) => acc + item.price * item.quantity, 0),
     [cart]
   );
+
   const totalGstAmount = useMemo(() => {
     if (!isGstEnabled) return 0;
     return cart.reduce((acc, item) => {
-      const gstRate = item.product.tax?.gst ?? 0;
+      const gstRate = item.product?.tax?.gst ?? 0;
       const itemTotal = item.price * item.quantity;
-      const itemGst = (itemTotal * gstRate) / 100;
-      return acc + itemGst;
+      return acc + (itemTotal * gstRate) / 100;
     }, 0);
   }, [cart, isGstEnabled]);
+
   const totalPayable = useMemo(() => {
     const packingDiscount = excludePacking ? 10 : 0;
     const total = subtotal - discount - packingDiscount + totalGstAmount;
     return total > 0 ? total : 0;
   }, [subtotal, discount, excludePacking, totalGstAmount]);
+
   const changeAmount = useMemo(() => {
     if (paymentMethod !== "cash" || paidAmount < totalPayable) return 0;
     return paidAmount - totalPayable;
@@ -118,28 +144,18 @@ export function BillingSection() {
 
   const debouncedChangeAmount = useDebounce(changeAmount, 750);
 
-  // SEARCH-AS-YOU-TYPE LOGIC: Triggers customer search after a pause
   useEffect(() => {
-    // Search only if length is between 3 and 9 digits
     if (debouncedPhonePrefix.length >= 3 && debouncedPhonePrefix.length < 10) {
       searchCustomersByPhonePrefix(debouncedPhonePrefix);
-    } else if (
-      debouncedPhonePrefix.length < 3 ||
-      debouncedPhonePrefix.length === 10
-    ) {
-      // Clear suggestions immediately if too short or exactly 10 digits
+    } else {
       useCustomerStore.setState({ suggestions: [] });
     }
   }, [debouncedPhonePrefix, searchCustomersByPhonePrefix]);
 
-  // RESET/INSTANT POPULATE LOGIC: Handles clearing and instant selection logic
   useEffect(() => {
-    // If phone drops to 0, reset everything
     if (phone.length === 0) {
       resetCustomer();
-    }
-    // If a customer was found, but the user starts deleting the phone number, reset the form fields.
-    else if (phone.length < 10 && isCustomerFound) {
+    } else if (phone.length < 10 && isCustomerFound) {
       useCustomerStore.setState({
         isCustomerFound: false,
         customer: null,
@@ -151,11 +167,8 @@ export function BillingSection() {
   }, [phone, resetCustomer, isCustomerFound]);
 
   useEffect(() => {
-    if (debouncedChangeAmount > 0) {
-      fetchSuggestions(debouncedChangeAmount);
-    } else {
-      clearSuggestions();
-    }
+    if (debouncedChangeAmount > 0) fetchSuggestions(debouncedChangeAmount);
+    else clearSuggestions();
   }, [debouncedChangeAmount, fetchSuggestions, clearSuggestions]);
 
   const selectedOec = useMemo(
@@ -189,435 +202,532 @@ export function BillingSection() {
     setOecQuantity(0);
   };
 
+  // ✅ Updated: Send PDF invoice to Telegram with proper return type
+  async function sendPdfToTelegram(
+    invoice: InvoiceToSend,
+    customerData: { name: string; phone: string },
+    chatId?: string | null
+  ) {
+    try {
+      const response = await fetch("/api/telegram/send-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          invoice,
+          customer: customerData,
+          chatId: chatId ?? null,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        console.error("Telegram API error:", result);
+        return {
+          success: false,
+          registered: false,
+          message: result.message,
+        };
+      }
+
+      return {
+        success: result.success,
+        registered: result.registered,
+        hasPrizes: result.hasPrizes || false,
+        prizeCount: result.prizeCount || 0,
+        message: result.message,
+      };
+    } catch (err) {
+      console.error("Failed to send Telegram message:", err);
+      return {
+        success: false,
+        registered: false,
+        message: "Network error",
+      };
+    }
+  }
+
   const handlePrintBill = async () => {
     if (!session?.user?.id) {
-      toast.error("User not logged in. Cannot create invoice.");
+      toast.error("User not logged in.");
       return;
     }
-    // Updated check to prevent printing without confirming customer
+
     if (!isCustomerFound || !customer) {
-      // If 10 digits and name are present, prompt user to click 'Add' first
       if (phone.length === 10 && name.trim().length > 1) {
-        toast.error(
-          "Please click the 'Add' button to confirm the new customer first."
-        );
+        toast.error("Click 'Add' to confirm new customer first.");
         return;
       }
-      toast.error("Please add or select a customer before printing.");
+      toast.error("Please select or add a customer before billing.");
       return;
     }
+
     if (cart.length === 0) {
       toast.error("Cannot print an empty cart.");
       return;
     }
+
     setIsSaving(true);
 
-    const invoicePayload: InvoiceDataPayload = {
-      billedById: session.user.id,
-      customerId: customer._id,
-      items: cart.map((item) => ({
-        variantId: item._id,
-        name: item.product.productName,
-        price: item.price,
-        quantity: item.quantity,
-        mrp: item.mrp ?? 0,
-        gstRate: isGstEnabled ? (item.product.tax?.gst ?? 0) : 0,
-        hsn: isGstEnabled ? (item.product.tax?.hsn ?? "") : "",
-      })),
-      subtotal: subtotal,
-      discount: discount,
-      packingChargeDiscount: excludePacking ? 10 : 0,
-      gstAmount: totalGstAmount,
-      totalPayable: totalPayable,
-      paymentMethod: paymentMethod,
-    };
+    try {
+      const invoicePayload: InvoiceDataPayload = {
+        billedById: session.user.id,
+        customerId: customer._id,
+        items: cart
+          .filter((item) => item.type === "variant")
+          .map((item) => ({
+            variantId: item._id,
+            name: item.product.productName,
+            price: item.price,
+            quantity: item.quantity,
+            mrp: item.mrp ?? 0,
+            gstRate: isGstEnabled ? (item.product?.tax?.gst ?? 0) : 0,
+            hsn: isGstEnabled ? (item.product?.tax?.hsn ?? "") : "",
+          })),
+        subtotal,
+        discount,
+        packingChargeDiscount: excludePacking ? 10 : 0,
+        gstAmount: totalGstAmount,
+        totalPayable,
+        paymentMethod,
+      };
 
-    const result = await createInvoice(invoicePayload);
-    if (result.success && result.data) {
-      toast.success("Invoice saved successfully!");
-      openModal(result.data);
+      // Save invoice to database
+      const result = await createInvoice(invoicePayload);
 
-      // ✅ 1. Prepare payload for stock update: filter out OEC items
-      const stockUpdatePayload = cart
-        .filter(item => item.type === "variant")
-        .map(item => ({
-          variantId: item._id,
-          quantity: item.quantity,
-        }));
-      
-      // ✅ 2. Call the REAL store action to update stock quantities in the database
-      await updateStocksAfterSale(stockUpdatePayload);
+      if (result.success && result.data) {
+        toast.success("Invoice saved successfully!");
 
-      // ✅ 3. Fetch updated product stock to refresh the list in the Searchbar
-      const { fetchProducts } = usePosStore.getState();
-      await fetchProducts();
+        // ✅ Check for offer qualifications
+        if (
+          result.data.offerQualifications &&
+          result.data.offerQualifications.length > 0
+        ) {
+          const qualified = result.data.offerQualifications.filter(
+            (q) => q.qualified
+          );
 
-      // ✅ 4. Clear cart and customer state after stock update
-      handleClear();
-    } else {
-      toast.error(result.message || "Failed to save invoice.");
+          if (qualified.length > 0) {
+            setOfferQualifications(qualified);
+            setCustomerNameForOffer((customer as any)?.name || "Customer");
+            setShowOfferModal(true);
+          }
+        }
+
+        // Open print modal
+        openModal(result.data);
+
+        // ✅ Prepare invoice data for Telegram (include offerQualifications)
+        const invoiceToSend: InvoiceToSend = {
+          invoiceNumber:
+            (result.data as any).invoiceNumber ??
+            (result.data as any)._id ??
+            "",
+          items: cart.map((item) => ({
+            name:
+              item.type === "oec"
+                ? item.product.productName
+                : item.product.productName,
+            price: item.price,
+            quantity: item.quantity,
+            variantId: item._id,
+            mrp: item.mrp ?? 0,
+            gstRate: isGstEnabled ? (item.product?.tax?.gst ?? 0) : 0,
+            hsn: isGstEnabled ? (item.product?.tax?.hsn ?? "") : "",
+          })),
+          totalPayable,
+          offerQualifications: result.data.offerQualifications, // ✅ Include prizes
+        };
+
+        const customerData = {
+          name: (customer as any)?.name ?? "",
+          phone: (customer as any)?.phone ?? "",
+        };
+
+        // ✅ AUTO-REGISTER: Check if customer has Telegram, if not, register them
+        let chatId = (customer as any)?.telegramChatId;
+
+        if (!chatId) {
+          console.log("⚡ Customer not registered, auto-registering...");
+
+          const storeChatId = "8559870798"; // Your store's Telegram chat ID
+
+          try {
+            const autoRegisterResponse = await fetch(
+              "/api/customer/auto-register",
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  customerId: (customer as any)._id,
+                  chatId: storeChatId,
+                }),
+              }
+            );
+
+            const autoRegisterResult = await autoRegisterResponse.json();
+
+            if (autoRegisterResult.success) {
+              console.log("✅ Customer auto-registered successfully");
+              chatId = storeChatId;
+            } else {
+              console.warn(
+                "⚠️ Auto-registration failed, using store chat anyway"
+              );
+              chatId = storeChatId;
+            }
+          } catch (error) {
+            console.error("❌ Auto-registration error:", error);
+            chatId = storeChatId; // Fallback to store chat
+          }
+        } else {
+          console.log("✅ Customer already registered with chat ID:", chatId);
+        }
+
+        console.log("🔍 DEBUG - Customer Data:");
+        console.log("   Customer Object:", customer);
+        console.log("   Customer Name:", customerData.name);
+        console.log("   Customer Phone:", customerData.phone);
+        console.log("   Telegram Chat ID:", chatId);
+        console.log("   Chat ID Type:", typeof chatId);
+        console.log("   Is Chat ID null?:", chatId === null);
+        console.log("   Is Chat ID undefined?:", chatId === undefined);
+        // ✅ Send invoice to Telegram with proper handling
+        const telegramResult = await sendPdfToTelegram(
+          invoiceToSend,
+          customerData,
+          chatId
+        );
+
+        if (telegramResult.success) {
+          if (telegramResult.hasPrizes && telegramResult.prizeCount > 0) {
+            toast.success(
+              `✅ Invoice sent to Telegram!\n🎉 Customer won ${telegramResult.prizeCount} prize(s)!`,
+              { duration: 5000 }
+            );
+          } else {
+            toast.success("✅ Invoice sent to Telegram!");
+          }
+        } else {
+          toast.error("⚠️ Failed to send invoice via Telegram");
+        }
+        // Update stock quantities
+        const stockUpdatePayload = cart
+          .filter((item) => item.type === "variant")
+          .map((item) => ({
+            variantId: item._id,
+            quantity: item.quantity,
+          }));
+
+        await updateStocksAfterSale(stockUpdatePayload);
+
+        // Refresh products
+        const { fetchProducts } = usePosStore.getState();
+        await fetchProducts();
+
+        // Clear form
+        handleClear();
+      } else {
+        toast.error(result.message || "Failed to save invoice.");
+      }
+    } catch (err) {
+      console.error("Error processing invoice:", err);
+      toast.error("An error occurred while processing the invoice.");
+    } finally {
+      setIsSaving(false);
     }
-    setIsSaving(false);
   };
 
-  return (
-    <div className="bg-gray-900 p-4 rounded-lg text-gray-200 h-full flex flex-col">
-      {/* ======================= STATIC TOP SECTION ======================= */}
-      <div>
-        <div className="flex items-center justify-between">
-          <h3 className="text-xl font-bold">Cart ({cart.length})</h3>
-          <span className="text-2xl font-bold">
-            ₹ {totalPayable.toFixed(2)}
-          </span>
-        </div>
-        <div className="p-3 rounded-lg mt-2">
-          <h4 className="font-semibold mb-1 text-sm">Customer Details</h4>
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2 text-xs">
-              <div className="relative flex-1">
-                {/* Customer Phone Input with Popover for Suggestions */}
-                <Popover
-                  // 1. Strict open condition: open ONLY if suggestions exist AND phone is less than 10 digits.
-                  open={
-                    suggestions.length > 0 &&
-                    phone.length >= 3 &&
-                    phone.length < 10
-                  }
-                  // 2. Set modal=false to prevent the popover from stealing focus
-                  modal={false}
-                  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                  onOpenChange={(_) => {
-                    // The 'open' prop handles the display, allowing the input to retain focus.
-                  }}
-                >
-                  <PopoverTrigger asChild>
-                    {/* The input acts as the trigger */}
-                    <Input
-                      // ✅ 3. Attach the ref to the input field
-                      ref={inputRef}
-                      placeholder="Phone Number"
-                      className="h-8 bg-gray-700 border-none text-white"
-                      type="tel"
-                      value={phone}
-                      onChange={(e) => {
-                        const rawValue = e.target.value.replace(/\D/g, "");
-                        setPhone(rawValue.slice(0, 10)); // Limits input to 10 characters
-                      }}
-                      maxLength={10}
-                    />
-                  </PopoverTrigger>
+  const mappedSuggestedProducts: ProductSuggestion[] = (
+    suggestedProducts ?? []
+  ).map((item: SuggestedVariantFromStore) => ({
+    _id: item._id,
+    name:
+      item.name ??
+      (item.productName as string) ??
+      (item.product as any)?.productName ??
+      "",
+    variantVolume: String(item.variantVolume ?? ""),
+    price: item.price,
+    productName:
+      (item.productName as string) ?? (item.product as any)?.productName ?? "",
+    unitName: ((item.unit as any)?.name as string) ?? "",
+  }));
 
-                  {/* Popover Content: Display Search Results */}
-                  <PopoverContent className="w-[300px] p-0 bg-gray-800 border-gray-700 max-h-60 overflow-y-auto z-50">
-                    {isLoading && (
-                      <div className="p-2 flex items-center justify-center">
+  return (
+    <>
+      <div className="bg-gray-900 p-4 rounded-lg text-gray-200 h-full flex flex-col">
+        {/* TOP */}
+        <div>
+          <div className="flex items-center justify-between">
+            <h3 className="text-xl font-bold">Cart ({cart.length})</h3>
+            <span className="text-2xl font-bold">
+              ₹ {totalPayable.toFixed(2)}
+            </span>
+          </div>
+
+          <div className="p-3 rounded-lg mt-2">
+            <h4 className="font-semibold mb-1 text-sm">Customer Details</h4>
+
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2 text-xs">
+                <div className="relative flex-1">
+                  <Popover
+                    open={
+                      suggestions.length > 0 &&
+                      phone.length >= 3 &&
+                      phone.length < 10
+                    }
+                    modal={false}
+                    onOpenChange={() => {}}
+                  >
+                    <PopoverTrigger asChild>
+                      <Input
+                        ref={inputRef}
+                        placeholder="Phone Number"
+                        className="h-8 bg-gray-700 border-none text-white"
+                        type="tel"
+                        value={phone}
+                        onChange={(e) => {
+                          const rawValue = e.target.value.replace(/\D/g, "");
+                          setPhone(rawValue.slice(0, 10));
+                        }}
+                        maxLength={10}
+                      />
+                    </PopoverTrigger>
+
+                    <PopoverContent className="w-[300px] p-0 bg-gray-800 border-gray-700 max-h-60 overflow-y-auto z-50">
+                      {isLoading && (
+                        <div className="p-2 flex items-center justify-center">
+                          <Loader2 className="animate-spin h-4 w-4" />
+                        </div>
+                      )}
+
+                      {!isLoading &&
+                        suggestions.length === 0 &&
+                        phone.length >= 3 && (
+                          <p className="p-2 text-xs text-gray-400">
+                            No matches found.
+                          </p>
+                        )}
+
+                      {suggestions.map((cust) => (
+                        <div
+                          key={cust._id}
+                          className="p-2 border-b border-gray-700 hover:bg-gray-700 cursor-pointer text-xs"
+                          onClick={() => {
+                            selectCustomer(cust);
+                            useCustomerStore.setState({ suggestions: [] });
+                            inputRef.current?.focus();
+                          }}
+                        >
+                          <span className="font-bold text-white">
+                            {cust.phone}
+                          </span>
+                          <span className="ml-2 text-gray-400">
+                            {cust.name}
+                          </span>
+                        </div>
+                      ))}
+                    </PopoverContent>
+                  </Popover>
+
+                  {isLoading && (
+                    <Loader2 className="animate-spin h-4 w-4 absolute right-2 top-2 text-gray-400" />
+                  )}
+                </div>
+
+                <Input
+                  placeholder="Name"
+                  className="h-8 bg-gray-700 border-none text-white flex-1"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  readOnly={isCustomerFound}
+                />
+
+                <Input
+                  placeholder="Address (Optional)"
+                  className="h-8 bg-gray-700 border-none text-white flex-1"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                />
+
+                {!isCustomerFound &&
+                  phone.length === 10 &&
+                  name.trim().length > 1 && (
+                    <Button
+                      onClick={createCustomer}
+                      variant="outline"
+                      className="h-8 px-2 py-1 text-black bg-yellow-500 hover:bg-yellow-600 font-semibold text-xs"
+                      disabled={isLoading}
+                    >
+                      {isLoading ? (
                         <Loader2 className="animate-spin h-4 w-4" />
-                      </div>
-                    )}
-                    {!isLoading &&
-                      suggestions.length === 0 &&
-                      phone.length >= 3 && (
-                        <p className="p-2 text-xs text-gray-400">
-                          No matches found.
+                      ) : (
+                        "Add"
+                      )}
+                    </Button>
+                  )}
+              </div>
+
+              {isCustomerFound && visitCount > 0 && (
+                <div className="bg-gray-800 text-center text-xs text-yellow-400 p-1 rounded-md">
+                  Customer has made {visitCount} previous purchase(s).
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* MIDDLE */}
+        <BillingSectionSecond
+          cart={cart}
+          subtotal={subtotal}
+          totalGstAmount={totalGstAmount}
+          totalPayable={totalPayable}
+          changeAmount={changeAmount}
+          debouncedChangeAmount={debouncedChangeAmount}
+          discount={discount}
+          setDiscount={setDiscount}
+          paymentMethod={paymentMethod}
+          setPaymentMethod={setPaymentMethod}
+          paidAmount={paidAmount}
+          setPaidAmount={setPaidAmount}
+          isGstEnabled={isGstEnabled}
+          toggleGst={toggleGst}
+          suggestedProducts={mappedSuggestedProducts}
+          isSuggestionLoading={isSuggestionLoading}
+          fetchSuggestions={fetchSuggestions}
+          clearSuggestions={clearSuggestions}
+          addToCart={addToCart}
+          isOilExpelling={isOilExpelling}
+          setIsOilExpelling={setIsOilExpelling}
+          oecs={oecs}
+          selectedOecId={selectedOecId}
+          setSelectedOecId={setSelectedOecId}
+          oecQuantity={oecQuantity}
+          setOecQuantity={setOecQuantity}
+          handleAddOec={handleAddOec}
+          excludePacking={excludePacking}
+          setExcludePacking={setExcludePacking}
+        />
+
+        {/* BOTTOM */}
+        <div>
+          <Separator className="bg-gray-700 my-4" />
+
+          <div className="flex justify-between items-center mb-4">
+            <span className="text-lg font-bold">Total Payable:</span>
+            <span className="text-lg font-bold">
+              ₹ {totalPayable.toFixed(2)}
+            </span>
+          </div>
+
+          <div className="flex justify-center gap-2">
+            <Button
+              onClick={handlePrintBill}
+              className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-black font-semibold"
+              disabled={isSaving}
+            >
+              {isSaving && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
+              {isSaving ? "Saving..." : "Print Bill"}
+            </Button>
+
+            <Button
+              onClick={handleClear}
+              className="flex-1 bg-red-500 hover:bg-red-600 text-black font-semibold"
+            >
+              Clear
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* ✅ Offer Success Modal */}
+      <Dialog open={showOfferModal} onOpenChange={setShowOfferModal}>
+        <DialogContent className="sm:max-w-md bg-linear-to-br from-yellow-50 via-orange-50 to-pink-50 dark:from-yellow-950 dark:via-orange-950 dark:to-pink-950 border-4 border-yellow-400">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-2xl text-center justify-center">
+              <Trophy className="h-8 w-8 text-yellow-500 animate-bounce" />
+              <span className="bg-linear-to-r from-yellow-600 to-orange-600 bg-clip-text text-transparent">
+                Congratulations! 🎉
+              </span>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="text-center">
+              <div className="relative">
+                <Sparkles className="h-20 w-20 mx-auto text-yellow-400 animate-pulse" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <Gift className="h-10 w-10 text-orange-500" />
+                </div>
+              </div>
+              <p className="text-xl font-bold mt-3 text-gray-900 dark:text-white">
+                {customerNameForOffer}
+              </p>
+              <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                Qualified for <strong>{offerQualifications.length}</strong>{" "}
+                offer{offerQualifications.length > 1 ? "s" : ""}!
+              </p>
+            </div>
+
+            <div className="space-y-3 max-h-[300px] overflow-y-auto">
+              {offerQualifications.map((offer, idx) => (
+                <div
+                  key={idx}
+                  className="p-4 rounded-lg bg-linear-to-r from-purple-100 via-pink-100 to-orange-100 dark:from-purple-900 dark:via-pink-900 dark:to-orange-900 border-2 border-yellow-400 shadow-lg transform hover:scale-105 transition-transform"
+                >
+                  <div className="flex items-start gap-3">
+                    <Trophy className="h-6 w-6 text-yellow-600 dark:text-yellow-400 shrink-0 mt-1" />
+                    <div className="flex-1">
+                      <h4 className="font-bold text-lg text-gray-900 dark:text-white">
+                        {offer.offerName}
+                      </h4>
+                      {offer.prizeName && (
+                        <p className="text-sm mt-1 text-gray-700 dark:text-gray-200">
+                          🎁 Prize: <strong>{offer.prizeName}</strong>
                         </p>
                       )}
-                    {suggestions.map((cust) => (
-                      <div
-                        key={cust._id}
-                        className="p-2 border-b border-gray-700 hover:bg-gray-700 cursor-pointer text-xs"
-                        // ✅ 4. Re-focus the input after selecting a suggestion
-                        onClick={() => {
-                          selectCustomer(cust);
-                          useCustomerStore.setState({ suggestions: [] });
-                          inputRef.current?.focus(); // Manually return focus to the input
-                        }}
-                      >
-                        <span className="font-bold text-white">
-                          {cust.phone}
-                        </span>
-                        <span className="ml-2 text-gray-400">{cust.name}</span>
-                      </div>
-                    ))}
-                  </PopoverContent>
-                </Popover>
-
-                {isLoading && (
-                  <Loader2 className="animate-spin h-4 w-4 absolute right-2 top-2 text-gray-400" />
-                )}
-              </div>
-              <Input
-                placeholder="Name"
-                className="h-8 bg-gray-700 border-none text-white flex-1"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                readOnly={isCustomerFound} // Name is readOnly once a customer is found/selected
-              />
-              <Input
-                placeholder="Address (Optional)"
-                className="h-8 bg-gray-700 border-none text-white flex-1"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-              />
-              {/* ADD BUTTON LOGIC: Show only if not found but all necessary fields are complete */}
-              {!isCustomerFound &&
-                phone.length === 10 &&
-                name.trim().length > 1 && (
-                  <Button
-                    onClick={createCustomer}
-                    variant="outline"
-                    className="h-8 px-2 py-1 text-black bg-yellow-500 hover:bg-yellow-600 font-semibold text-xs"
-                    disabled={isLoading}
-                  >
-                    {isLoading ? (
-                      <Loader2 className="animate-spin h-4 w-4" />
-                    ) : (
-                      "Add"
-                    )}
-                  </Button>
-                )}
-            </div>
-            {isCustomerFound && visitCount > 0 && (
-              <div className="bg-gray-800 text-center text-xs text-yellow-400 p-1 rounded-md">
-                Customer has made {visitCount} previous purchase(s).
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* ======================= SCROLLABLE MIDDLE SECTION ======================= */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 no-scrollbar">
-        <div className="flex justify-between items-center text-sm">
-          <span>Total Items:</span>
-          <span className="font-semibold">{cart.length}</span>
-        </div>
-        <div className="flex justify-between items-center text-sm">
-          <span>Subtotal:</span>
-          <span className="font-semibold">₹ {subtotal.toFixed(2)}</span>
-        </div>
-        <div className="flex justify-between items-center text-sm">
-          <span>Discount (₹):</span>
-          <Input
-            type="number"
-            placeholder="0"
-            className="h-8 w-20 bg-gray-800 border-none text-white text-xs text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-            value={discount || ""}
-            onChange={(e) => setDiscount(e.target.valueAsNumber || 0)}
-          />
-        </div>
-        {isGstEnabled && (
-          <div className="flex justify-between items-center text-sm text-green-400">
-            <span>GST Amount:</span>
-            <span className="font-semibold">₹ {totalGstAmount.toFixed(2)}</span>
-          </div>
-        )}
-        <div className="flex gap-2 justify-center pt-2">
-          <Button
-            onClick={() => setPaymentMethod("cash")}
-            className={cn(
-              "flex-1 font-semibold",
-              paymentMethod === "cash"
-                ? "bg-green-500 hover:bg-green-600 text-black"
-                : "bg-gray-700 hover:bg-gray-600 text-white"
-            )}
-          >
-            Cash
-          </Button>
-          <Button
-            onClick={() => setPaymentMethod("upi")}
-            className={cn(
-              "flex-1 font-semibold",
-              paymentMethod === "upi"
-                ? "bg-blue-500 hover:bg-blue-600 text-black"
-                : "bg-gray-700 hover:bg-gray-600 text-white"
-            )}
-          >
-            UPI
-          </Button>
-          <Button
-            onClick={() => setPaymentMethod("card")}
-            className={cn(
-              "flex-1 font-semibold",
-              paymentMethod === "card"
-                ? "bg-purple-500 hover:bg-purple-600 text-black"
-                : "bg-gray-700 hover:bg-gray-600 text-white"
-            )}
-          >
-            Card
-          </Button>
-        </div>
-        {paymentMethod === "cash" && (
-          <div className="space-y-4 pt-2">
-            <div className="flex justify-between items-center text-sm">
-              <span>Paid Amount:</span>
-              <Input
-                type="number"
-                placeholder="0"
-                className="h-8 w-20 bg-gray-800 border-none text-white text-xs text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                value={paidAmount || ""}
-                onChange={(e) => setPaidAmount(e.target.valueAsNumber || 0)}
-              />
-            </div>
-            <div className="flex justify-between items-center text-sm">
-              <span>Change:</span>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Input
-                    readOnly
-                    value={changeAmount.toFixed(2)}
-                    className="h-8 w-20 bg-gray-800 border-yellow-500 text-yellow-400 font-bold text-xs text-right cursor-pointer"
-                  />
-                </PopoverTrigger>
-                <PopoverContent className="w-80 bg-gray-800 border-gray-700 text-white">
-                  <div className="space-y-2">
-                    <h4 className="font-medium leading-none">
-                      Product Suggestions
-                    </h4>
-                    <p className="text-sm text-gray-400">
-                      Products you can buy with the change amount.
-                    </p>
-                  </div>
-                  <div className="mt-4 space-y-2">
-                    {isSuggestionLoading && (
-                      <Loader2 className="animate-spin" />
-                    )}
-                    {suggestedProducts.length === 0 && !isSuggestionLoading && (
-                      <p className="text-xs text-gray-500">
-                        No products found.
-                      </p>
-                    )}
-                    {suggestedProducts.map((product) => (
-                      <div
-                        key={product._id}
-                        className="flex items-center justify-between text-xs p-2 rounded-md hover:bg-gray-700"
-                      >
-                        <div>
-                          <div>{product.product.productName}</div>
-                          <div className="text-gray-400">
-                            {product.variantVolume} {product.unit.name}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold">
-                            ₹{product.price.toFixed(2)}
+                      {offer.prizeRank && (
+                        <p className="text-sm mt-1 font-bold text-orange-700 dark:text-orange-300">
+                          🏆 Rank:{" "}
+                          <span className="uppercase">
+                            {offer.prizeRank} PRIZE!
                           </span>
-                          <Button
-                            size="icon"
-                            className="h-6 w-6 bg-yellow-500 hover:bg-yellow-600"
-                            onClick={() => addToCart(product)}
-                          >
-                            <ShoppingCart className="h-4 w-4 text-black" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
+                        </p>
+                      )}
+                      {offer.position && (
+                        <p className="text-sm mt-1 text-gray-600 dark:text-gray-300">
+                          📍 Position: <strong>#{offer.position}</strong>
+                        </p>
+                      )}
+                    </div>
                   </div>
-                </PopoverContent>
-              </Popover>
+                </div>
+              ))}
             </div>
-          </div>
-        )}
-        <Separator className="bg-gray-700" />
-        <div className="flex items-center space-x-2">
-          <input
-            type="checkbox"
-            className="form-checkbox h-4 w-4 text-orange-600 bg-gray-600"
-            checked={isOilExpelling}
-            onChange={(e) => setIsOilExpelling(e.target.checked)}
-          />
-          <span className="text-sm">Oil Expelling Charges</span>
-        </div>
-        {isOilExpelling && (
-          <div className="p-3 rounded-lg flex flex-col gap-2 border border-gray-700">
-            <Select
-              onValueChange={setSelectedOecId}
-              value={selectedOecId || ""}
-            >
-              <SelectTrigger className="h-8 bg-gray-700 border-none text-white text-xs">
-                <SelectValue placeholder="Select Product..." />
-              </SelectTrigger>
-              <SelectContent>
-                {oecs.map((oec) => (
-                  <SelectItem key={oec._id} value={oec._id}>
-                    {oec.product.productName} ({oec.product.productCode})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <div className="flex gap-2">
-              <Input
-                type="number"
-                placeholder="Qty"
-                className="h-8 bg-gray-700 border-none text-white text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                value={oecQuantity || ""}
-                onChange={(e) => setOecQuantity(e.target.valueAsNumber || 0)}
-              />
-              <Input
-                readOnly
-                placeholder="Charges"
-                className="h-8 bg-gray-700 border-none text-white text-xs"
-                value={
-                  selectedOec
-                    ? `₹ ${selectedOec.oilExpellingCharges.toFixed(2)}`
-                    : "Charges"
-                }
-              />
-              <Button
-                size="sm"
-                onClick={handleAddOec}
-                className="h-8 bg-blue-500 hover:bg-blue-600 text-black"
-              >
-                Add
-              </Button>
-            </div>
-          </div>
-        )}
-        <div className="flex items-center space-x-2">
-          <input
-            type="checkbox"
-            className="form-checkbox h-4 w-4 text-orange-600 bg-gray-600"
-            checked={excludePacking}
-            onChange={(e) => setExcludePacking(e.target.checked)}
-          />
-          <span className="text-sm">Exclude Packing Charges</span>
-        </div>
-        <div className="flex items-center space-x-2">
-          <input
-            type="checkbox"
-            className="form-checkbox h-4 w-4 text-orange-600 bg-gray-600"
-            checked={isGstEnabled}
-            onChange={toggleGst}
-          />
-          <span className="text-sm">Enable GST</span>
-        </div>
-      </div>
 
-      {/* ======================= STATIC BOTTOM SECTION ======================= */}
-      <div>
-        <Separator className="bg-gray-700 my-4" />
-        <div className="flex justify-between items-center mb-4">
-          <span className="text-lg font-bold">Total Payable:</span>
-          <span className="text-lg font-bold">₹ {totalPayable.toFixed(2)}</span>
-        </div>
-        <div className="flex justify-center gap-2">
+            <div className="bg-blue-100 dark:bg-blue-900 p-4 rounded-lg border-2 border-blue-300 dark:border-blue-700">
+              <p className="text-sm text-blue-900 dark:text-blue-100 text-center">
+                💡 <strong>Prize details are printed on the invoice.</strong>
+                <br />
+                Customer should contact staff to claim their prize(s).
+              </p>
+            </div>
+          </div>
+
           <Button
-            onClick={handlePrintBill}
-            className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-black font-semibold"
-            disabled={isSaving}
+            onClick={() => setShowOfferModal(false)}
+            className="w-full bg-linear-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold py-3 shadow-lg"
           >
-            {isSaving ? (
-              <Loader2 className="animate-spin h-4 w-4 mr-2" />
-            ) : null}
-            {isSaving ? "Saving..." : "Print Bill"}
+            <X className="h-5 w-5 mr-2" />
+            Close & Continue
           </Button>
-          <Button
-            onClick={handleClear}
-            className="flex-1 bg-red-500 hover:bg-red-600 text-black font-semibold"
-          >
-            Clear
-          </Button>
-        </div>
-      </div>
-    </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
+
+export default BillingSection;

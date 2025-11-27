@@ -18,12 +18,18 @@ interface ProductDetails {
   sellingPrice: number;
 }
 
+interface CalculatedPricing {
+  price: number;
+  discount: number;
+}
+
 interface IVariantState {
   variants: IPopulatedVariant[];
   products: IPopulatedProduct[];
   units: IUnit[];
   isLoading: boolean;
   productDetails: ProductDetails;
+  calculatedPricing: CalculatedPricing;
 
   // State setters
   setVariants: (variants: IPopulatedVariant[]) => void;
@@ -35,25 +41,59 @@ interface IVariantState {
   fetchVariants: () => Promise<void>;
   fetchFormData: () => Promise<void>;
   fetchProductDetails: (productId: string) => Promise<void>;
+  
+  // New pricing calculation actions
+  calculatePrice: (params: {
+    unitConsumed: number;
+    packingCharges: number;
+    laborCharges: number;
+    electricityCharges: number;
+    others1: number;
+    others2: number;
+  }) => number;
+  
+  calculateDiscount: (price: number, mrp: number) => number;
+  
+  updateCalculatedPricing: (params: {
+    unitConsumed?: number;
+    packingCharges?: number;
+    laborCharges?: number;
+    electricityCharges?: number;
+    others1?: number;
+    others2?: number;
+    price?: number;
+    mrp?: number;
+  }) => CalculatedPricing;
 
   // Local store CRUD helpers
   addVariant: (variant: IVariant) => Promise<void>;
   updateVariant: (variant: IVariant) => Promise<void>;
   removeVariant: (variantId: string) => void;
+  
+  // Reset functions
+  resetProductDetails: () => void;
+  resetCalculatedPricing: () => void;
 }
 
-// ✅ FIX: Removed the unused 'get' function argument
-export const useVariantStore = create<IVariantState>((set) => ({
+const initialProductDetails: ProductDetails = {
+  productCode: "",
+  totalPrice: 0,
+  purchasePrice: 0,
+  sellingPrice: 0,
+};
+
+const initialCalculatedPricing: CalculatedPricing = {
+  price: 0,
+  discount: 0,
+};
+
+export const useVariantStore = create<IVariantState>((set, get) => ({
   variants: [],
   products: [],
   units: [],
   isLoading: false,
-  productDetails: {
-    productCode: "",
-    totalPrice: 0,
-    purchasePrice: 0,
-    sellingPrice: 0,
-  },
+  productDetails: initialProductDetails,
+  calculatedPricing: initialCalculatedPricing,
 
   // ---------------------
   // ✅ SETTERS
@@ -110,19 +150,11 @@ export const useVariantStore = create<IVariantState>((set) => ({
   },
 
   // ---------------------
-  // ✅ FETCH PRODUCT DETAILS (Dynamic Pricing Fix)
+  // ✅ FETCH PRODUCT DETAILS
   // ---------------------
   fetchProductDetails: async (productId: string) => {
     if (!productId) {
-      // Clear product details if no product selected
-      set({
-        productDetails: {
-          productCode: "",
-          totalPrice: 0,
-          purchasePrice: 0,
-          sellingPrice: 0,
-        },
-      });
+      get().resetProductDetails();
       return;
     }
 
@@ -148,27 +180,94 @@ export const useVariantStore = create<IVariantState>((set) => ({
         });
       } else {
         console.warn("⚠️ Product not found or missing details:", result.message);
-        set({
-          productDetails: {
-            productCode: "",
-            totalPrice: 0,
-            purchasePrice: 0,
-            sellingPrice: 0,
-          },
-        });
+        get().resetProductDetails();
       }
     } catch (error) {
       console.error("❌ Failed to fetch product details:", error);
       toast.error("Error fetching product details.");
-      set({
-        productDetails: {
-          productCode: "",
-          totalPrice: 0,
-          purchasePrice: 0,
-          sellingPrice: 0,
-        },
-      });
+      get().resetProductDetails();
     }
+  },
+
+  // ---------------------
+  // ✅ CALCULATE PRICE
+  // ---------------------
+  calculatePrice: (params) => {
+    const { productDetails } = get();
+    const sellingPrice = productDetails.sellingPrice || 0;
+    
+    const {
+      unitConsumed = 0,
+      packingCharges = 0,
+      laborCharges = 0,
+      electricityCharges = 0,
+      others1 = 0,
+      others2 = 0,
+    } = params;
+
+    const calculatedPrice =
+      unitConsumed * sellingPrice +
+      packingCharges +
+      laborCharges +
+      electricityCharges +
+      others1 +
+      others2;
+
+    return calculatedPrice;
+  },
+
+  // ---------------------
+  // ✅ CALCULATE DISCOUNT
+  // ---------------------
+  calculateDiscount: (price, mrp) => {
+    if (mrp <= 0) return 0;
+    return Math.round(((mrp - price) / mrp) * 100);
+  },
+
+  // ---------------------
+  // ✅ UPDATE CALCULATED PRICING
+  // ---------------------
+  updateCalculatedPricing: (params) => {
+    const state = get();
+    
+    // If price-related params are provided, calculate new price
+    if (
+      params.unitConsumed !== undefined ||
+      params.packingCharges !== undefined ||
+      params.laborCharges !== undefined ||
+      params.electricityCharges !== undefined ||
+      params.others1 !== undefined ||
+      params.others2 !== undefined
+    ) {
+      const newPrice = state.calculatePrice({
+        unitConsumed: params.unitConsumed ?? 0,
+        packingCharges: params.packingCharges ?? 0,
+        laborCharges: params.laborCharges ?? 0,
+        electricityCharges: params.electricityCharges ?? 0,
+        others1: params.others1 ?? 0,
+        others2: params.others2 ?? 0,
+      });
+
+      const currentMrp = params.mrp ?? state.calculatedPricing.price;
+      const newDiscount = state.calculateDiscount(newPrice, currentMrp);
+
+      const newPricing = { price: newPrice, discount: newDiscount };
+      set({ calculatedPricing: newPricing });
+      return newPricing;
+    }
+
+    // If only price or mrp changed, recalculate discount
+    if (params.price !== undefined || params.mrp !== undefined) {
+      const price = params.price ?? state.calculatedPricing.price;
+      const mrp = params.mrp ?? 0;
+      const newDiscount = state.calculateDiscount(price, mrp);
+
+      const newPricing = { price, discount: newDiscount };
+      set({ calculatedPricing: newPricing });
+      return newPricing;
+    }
+
+    return state.calculatedPricing;
   },
 
   // ---------------------
@@ -217,5 +316,16 @@ export const useVariantStore = create<IVariantState>((set) => ({
     set((state) => ({
       variants: state.variants.filter((v) => v._id !== variantId),
     }));
+  },
+
+  // ---------------------
+  // ✅ RESET FUNCTIONS
+  // ---------------------
+  resetProductDetails: () => {
+    set({ productDetails: initialProductDetails });
+  },
+
+  resetCalculatedPricing: () => {
+    set({ calculatedPricing: initialCalculatedPricing });
   },
 }));

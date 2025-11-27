@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { motion } from 'framer-motion';
 import { SalesRadialChart } from '@/components/charts/SalesRadialChart';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useTheme } from 'next-themes';
 
 interface SalesOverviewChartProps {
@@ -31,6 +31,11 @@ export function SalesOverviewChart({ data }: SalesOverviewChartProps) {
   // Filter out any data related to "Oil Expelling"
   const filteredData = data.filter(item => !item.productName.includes("Oil Expelling"));
 
+  // Calculate total invoice count
+  const totalInvoiceCount = useMemo(() => {
+    return filteredData.reduce((sum, item) => sum + item.totalSales, 0);
+  }, [filteredData]);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -43,16 +48,18 @@ export function SalesOverviewChart({ data }: SalesOverviewChartProps) {
           <CardTitle className="text-lg font-bold">Total Items Sold</CardTitle> 
           <p className="text-sm text-gray-400">Last 7 days</p>
         </CardHeader>
-        <CardContent className="h-52 mt-4 p-0">
+        <CardContent className="p-0 mt-4">
           {filteredData.length > 0 ? (
-            <div className="flex flex-col justify-center items-center h-full">
+            <div className="flex flex-col">
               <Dialog open={isEnlarged} onOpenChange={setIsEnlarged}>
                 <DialogTrigger asChild>
-                  <div className="w-full h-full cursor-pointer">
+                  <div className="w-full cursor-pointer">
                     <SalesRadialChart 
                       data={filteredData} 
                       chartBackground={chartTheme.chartBackground} 
-                      labelFill={chartTheme.labelFill} 
+                      labelFill={chartTheme.labelFill}
+                      showCenterLabel={false}
+                      totalInvoiceCount={totalInvoiceCount}
                     />
                   </div>
                 </DialogTrigger>
@@ -60,18 +67,21 @@ export function SalesOverviewChart({ data }: SalesOverviewChartProps) {
                   <DialogHeader>
                     <DialogTitle>Sales Overview (Enlarged)</DialogTitle>
                   </DialogHeader>
-                  <div className="w-full h-[650px]">
+                  <div className="w-full">
                     <SalesRadialChart 
                       data={filteredData} 
                       chartBackground={chartTheme.chartBackground} 
-                      labelFill={chartTheme.labelFill} 
+                      labelFill={chartTheme.labelFill}
+                      showCenterLabel={false}
+                      totalInvoiceCount={totalInvoiceCount}
+                      isEnlarged={true}
                     />
                   </div>
                 </DialogContent>
               </Dialog>
             </div>
           ) : (
-            <div className="flex items-center justify-center h-full text-gray-500">
+            <div className="flex items-center justify-center h-52 text-gray-500">
               No data to display.
             </div>
           )}

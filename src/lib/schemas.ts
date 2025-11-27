@@ -164,3 +164,93 @@ export const messageSchema = z.object({
 
 export const PackingMaterialSchema = packingMaterialSchema_internal;
 export type PackingMaterialFormValues = PackingMaterialFormValues_internal;
+
+
+// Offers Schemas 
+
+// Prize Schema (used in festival hit counter)
+export const prizeSchema = z.object({
+  rank: z.enum(['first', 'second', 'third']),
+  prizeName: z.string().min(1, "Prize name is required."),
+  image: z
+    .instanceof(File)
+    .refine((file) => file.size > 0, "Prize image is required.")
+    .refine((file) => file.size <= MAX_FILE_SIZE, `Max image size is 5MB.`)
+    .refine(
+      (file) => ACCEPTED_IMAGE_TYPES.includes(file.type),
+      "Only .jpg, .jpeg, .png and .webp formats are supported."
+    ),
+});
+
+// Base fields common to all offers
+const baseOfferFields = {
+  product: z.string().min(1, "Product is required."),
+  startDate: z.string().min(1, "Start date is required."),
+  endDate: z.string().min(1, "End date is required."),
+};
+
+// Festival Hit Counter Offer Schema
+export const festivalHitCounterOfferSchema = z.object({
+  ...baseOfferFields,
+  offerType: z.literal('festival_hit_counter'),
+  festivalName: z.string().min(1, "Festival name is required."),
+  customerLimit: z.coerce.number().min(1, "Customer limit must be at least 1."),
+  prizes: z.array(prizeSchema).length(3, "All three prizes are required."),
+});
+
+// Festival Amount-Based Offer Schema
+export const festivalAmountOfferSchema = z.object({
+  ...baseOfferFields,
+  offerType: z.literal('festival_amount'),
+  festivalName: z.string().min(1, "Festival name is required."),
+  minimumAmount: z.coerce.number().min(1, "Minimum amount must be greater than 0."),
+  prizeName: z.string().min(1, "Prize name is required."),
+  prizeImage: z
+    .instanceof(File)
+    .refine((file) => file.size > 0, "Prize image is required.")
+    .refine((file) => file.size <= MAX_FILE_SIZE, `Max image size is 5MB.`)
+    .refine(
+      (file) => ACCEPTED_IMAGE_TYPES.includes(file.type),
+      "Only .jpg, .jpeg, .png and .webp formats are supported."
+    ),
+});
+
+// Regular Visit Count Offer Schema
+export const regularVisitCountOfferSchema = z.object({
+  ...baseOfferFields,
+  offerType: z.literal('regular_visit'),
+  visitCount: z.coerce.number().min(1, "Visit count must be at least 1."),
+  prizeName: z.string().min(1, "Prize name is required."),
+  prizeImage: z
+    .instanceof(File)
+    .refine((file) => file.size > 0, "Prize image is required.")
+    .refine((file) => file.size <= MAX_FILE_SIZE, `Max image size is 5MB.`)
+    .refine(
+      (file) => ACCEPTED_IMAGE_TYPES.includes(file.type),
+      "Only .jpg, .jpeg, .png and .webp formats are supported."
+    ),
+});
+
+// Regular Purchase Amount Offer Schema
+export const regularPurchaseAmountOfferSchema = z.object({
+  ...baseOfferFields,
+  offerType: z.literal('regular_amount'),
+  targetAmount: z.coerce.number().min(1, "Target amount must be greater than 0."),
+  prizeName: z.string().min(1, "Prize name is required."),
+  prizeImage: z
+    .instanceof(File)
+    .refine((file) => file.size > 0, "Prize image is required.")
+    .refine((file) => file.size <= MAX_FILE_SIZE, `Max image size is 5MB.`)
+    .refine(
+      (file) => ACCEPTED_IMAGE_TYPES.includes(file.type),
+      "Only .jpg, .jpeg, .png and .webp formats are supported."
+    ),
+});
+
+// Union type for all offer schemas - NOW WITH UNIQUE DISCRIMINATOR VALUES
+export const offerSchema = z.discriminatedUnion('offerType', [
+  festivalHitCounterOfferSchema,
+  festivalAmountOfferSchema,
+  regularVisitCountOfferSchema,
+  regularPurchaseAmountOfferSchema,
+]);

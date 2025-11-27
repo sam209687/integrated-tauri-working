@@ -1,7 +1,7 @@
 // src/store/suggestionStore.ts
-import { create } from 'zustand';
-import { getVariantsByMaxPrice } from '@/actions/pos/pos-suggestions.actions';
-import { IPosVariant } from '@/actions/pos/pos.actions';
+import { create } from "zustand";
+import { getVariantsByMaxPrice } from "@/actions/pos/pos-suggestions.actions";
+import { IPosVariant } from "@/actions/pos/pos.actions";
 
 interface SuggestionState {
   suggestedProducts: IPosVariant[];
@@ -21,8 +21,15 @@ export const useSuggestionStore = create<SuggestionState>((set) => ({
     set({ isLoading: true });
     try {
       const result = await getVariantsByMaxPrice(price);
+
+      // 🔥 ADD THIS
+      console.log(JSON.stringify(result.data, null, 2));
+
       if (result.success) {
-        set({ suggestedProducts: result.data as IPosVariant[], isLoading: false });
+        set({
+          suggestedProducts: result.data as IPosVariant[],
+          isLoading: false,
+        });
       } else {
         set({ isLoading: false });
       }

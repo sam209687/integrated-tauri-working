@@ -1,8 +1,8 @@
+// src/components/pos/PrintPreview.tsx
 "use client";
 
 import { useState, useEffect } from 'react';
 import { usePrintStore } from '@/store/printStore';
-// import { useStoreDetailsStore } from '@/store/storeDetailsStore';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -10,6 +10,8 @@ import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import QRCode from 'qrcode';
 import { useStoreDetailsStore } from '@/store/storeDetails.store';
+import { Trophy, Gift, Settings } from 'lucide-react';
+import Link from 'next/link';
 
 export function PrintPreview() {
   const { isModalOpen, invoiceData, closeModal } = usePrintStore();
@@ -22,6 +24,12 @@ export function PrintPreview() {
   useEffect(() => {
     if (isModalOpen) {
       fetchActiveStore();
+      
+      // Load paper size from localStorage (set in printer settings)
+      const savedPaperSize = localStorage.getItem('paperSize') as '80mm' | '58mm';
+      if (savedPaperSize) {
+        setPaperSize(savedPaperSize);
+      }
     }
   }, [isModalOpen, fetchActiveStore]);
 
@@ -37,6 +45,18 @@ export function PrintPreview() {
     }
   }, [invoiceData]);
 
+  // Auto-print if enabled
+  useEffect(() => {
+    if (isModalOpen && invoiceData) {
+      const autoPrint = localStorage.getItem('autoPrint') === 'true';
+      if (autoPrint) {
+        // Delay to allow rendering
+        setTimeout(() => {
+          handlePrint();
+        }, 500);
+      }
+    }
+  }, [isModalOpen, invoiceData]);
 
   if (!invoiceData || !activeStore) return null;
 
@@ -45,6 +65,10 @@ export function PrintPreview() {
   };
 
   const isGstEnabled = invoiceData.gstAmount > 0;
+  
+  // Check if customer won any prizes
+  const qualifiedOffers = invoiceData.offerQualifications?.filter(q => q.qualified) || [];
+  const hasWonPrizes = qualifiedOffers.length > 0;
 
   return (
     <Dialog open={isModalOpen} onOpenChange={closeModal}>
@@ -57,15 +81,41 @@ export function PrintPreview() {
           {/* Print Controls */}
           <div className="print-hidden w-full md:w-48 flex flex-col gap-4">
             <h3 className="text-lg font-bold">Print Options</h3>
+            
+            {/* Paper Size Display (Read-only) */}
             <div>
-              <label className="text-sm font-medium">Paper Size</label>
-              <div className="flex gap-2 mt-2">
-                <Button onClick={() => setPaperSize('80mm')} className={cn(paperSize === '80mm' ? 'bg-yellow-500 text-black' : 'bg-gray-700')}>80mm</Button>
-                <Button onClick={() => setPaperSize('58mm')} className={cn(paperSize === '58mm' ? 'bg-yellow-500 text-black' : 'bg-gray-700')}>58mm</Button>
+              <label className="text-sm font-medium mb-2 block">Paper Size</label>
+              <div className="bg-gray-700 p-3 rounded-lg">
+                <p className="text-center font-semibold">{paperSize}</p>
+                <p className="text-xs text-gray-400 text-center mt-1">
+                  Configure in settings
+                </p>
               </div>
             </div>
+            
+            {/* Link to Printer Settings */}
+            <Link href="/admin/printer-settings">
+              <Button variant="outline" className="w-full">
+                <Settings className="mr-2 h-4 w-4" />
+                Printer Settings
+              </Button>
+            </Link>
+            
+            {/* Prize notification */}
+            {hasWonPrizes && (
+              <div className="bg-green-600 text-white p-3 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <Trophy className="h-5 w-5" />
+                  <span className="font-bold">Prize Won! 🎉</span>
+                </div>
+                <p className="text-xs">Customer qualified for {qualifiedOffers.length} offer(s)</p>
+              </div>
+            )}
+            
             <Separator className="bg-gray-700" />
-            <Button onClick={handlePrint} className="bg-green-500 text-black font-bold">Print</Button>
+            <Button onClick={handlePrint} className="bg-green-500 text-black font-bold">
+              Print Invoice
+            </Button>
           </div>
 
           {/* Invoice Preview */}
@@ -138,6 +188,48 @@ export function PrintPreview() {
                   <span>₹{invoiceData.totalPayable.toFixed(2)}</span>
                 </div>
               </div>
+
+              {/* Prize Section */}
+              {hasWonPrizes && (
+                <>
+                  <Separator className="my-2 bg-gray-400 border-double border-2" />
+                  <div className="border-2 border-black rounded p-2 bg-yellow-50">
+                    <div className="text-center mb-2">
+                      <div className="flex items-center justify-center gap-1">
+                        <Trophy className="h-4 w-4" />
+                        <span className="font-bold text-sm">🎉 CONGRATULATIONS! 🎉</span>
+                      </div>
+                      <p className="text-[9px] font-semibold mt-1">YOU WON {qualifiedOffers.length} PRIZE(S)!</p>
+                    </div>
+                    
+                    {qualifiedOffers.map((offer, idx) => (
+                      <div key={idx} className="mb-2 pb-2 border-b border-dashed border-gray-400 last:border-0">
+                        <div className="flex items-start gap-1">
+                          <Gift className="h-3 w-3 mt-0.5 shrink-0" />
+                          <div className="flex-1">
+                            <p className="font-bold text-[9px]">{offer.offerName}</p>
+                            {offer.prizeName && (
+                              <p className="text-[8px] mt-0.5">Prize: {offer.prizeName}</p>
+                            )}
+                            {offer.prizeRank && (
+                              <p className="text-[8px] font-bold mt-0.5">
+                                🏆 {offer.prizeRank.toUpperCase()} PRIZE!
+                              </p>
+                            )}
+                            {offer.position && (
+                              <p className="text-[7px] mt-0.5">Position: #{offer.position}</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    
+                    <p className="text-[7px] text-center mt-2">
+                      * Contact staff to claim your prize
+                    </p>
+                  </div>
+                </>
+              )}
 
               <div className="text-center mt-2">
                 <p>Thank you for your business!</p>

@@ -5,14 +5,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { usePosStore } from "@/store/posStore";
-import dynamic from "next/dynamic";
-import { Camera, X } from "lucide-react";
-
-// ✅ Dynamically import Scanner correctly
-const QrScanner = dynamic(
-  () => import("@yudiel/react-qr-scanner").then((mod) => mod.Scanner),
-  { ssr: false }
-);
+import { X, AlertCircle, CheckCircle, Scan } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export function Searchbar() {
   const {
@@ -25,7 +19,14 @@ export function Searchbar() {
   } = usePosStore();
 
   const inputRef = useRef<HTMLInputElement>(null);
-  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const scannerInputRef = useRef<HTMLInputElement>(null);
+  const [isScannerMode, setIsScannerMode] = useState(false);
+  const [scanStatus, setScanStatus] = useState<{
+    type: "success" | "error" | "waiting" | null;
+    message: string;
+  }>({ type: null, message: "" });
+  const [scannedBuffer, setScannedBuffer] = useState("");
+  const bufferTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     fetchProducts();
@@ -42,23 +43,106 @@ export function Searchbar() {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  const handleQrResult = (result: string | null) => {
-    if (!result) return;
+  // Focus scanner input when scanner mode is activated
+  useEffect(() => {
+    if (isScannerMode && scannerInputRef.current) {
+      scannerInputRef.current.focus();
+      setScanStatus({ 
+        type: "waiting", 
+        message: "Ready to scan. Point scanner at QR code or barcode..." 
+      });
+    } else {
+      setScanStatus({ type: null, message: "" });
+      setScannedBuffer("");
+      if (bufferTimeoutRef.current) {
+        clearTimeout(bufferTimeoutRef.current);
+      }
+    }
+  }, [isScannerMode]);
+
+  const handleScannerInput = (scannedCode: string) => {
+    if (!scannedCode.trim()) return;
+
+    // Clear any existing timeout
+    if (bufferTimeoutRef.current) {
+      clearTimeout(bufferTimeoutRef.current);
+    }
+
     try {
-      const parsed = JSON.parse(result);
+      // Try parsing as JSON first (for QR codes with structured data)
+      const parsed = JSON.parse(scannedCode);
       const product = products.find(
         (v) => v._id === parsed.variantId || v.product._id === parsed.productId
       );
-      if (product) addToCart(product);
-      else alert("❌ Product not found for scanned QR code.");
+      
+      if (product) {
+        addToCart(product);
+        setScanStatus({
+          type: "success",
+          message: `✓ Added: ${product.product.productCode} - ${product.product.productName}`,
+        });
+        
+        // Clear scanner input and close after 2 seconds
+        setTimeout(() => {
+          setIsScannerMode(false);
+          if (scannerInputRef.current) {
+            scannerInputRef.current.value = "";
+          }
+        }, 2000);
+      } else {
+        setScanStatus({
+          type: "error",
+          message: "❌ Product not found for scanned code.",
+        });
+      }
     } catch {
+      // If not JSON, treat as plain text (barcode or simple QR)
       const product = products.find(
-        (v) => v._id === result || v.product._id === result
+        (v) =>
+          v.product.productCode === scannedCode ||
+          v._id === scannedCode ||
+          v.product._id === scannedCode ||
+          v.product.productCode?.toLowerCase() === scannedCode.toLowerCase()
       );
-      if (product) addToCart(product);
-      else alert("❌ Invalid QR or product not found.");
+
+      if (product) {
+        addToCart(product);
+        setScanStatus({
+          type: "success",
+          message: `✓ Added: ${product.product.productCode} - ${product.product.productName}`,
+        });
+        
+        // Clear scanner input and close after 2 seconds
+        setTimeout(() => {
+          setIsScannerMode(false);
+          if (scannerInputRef.current) {
+            scannerInputRef.current.value = "";
+          }
+        }, 2000);
+      } else {
+        // If not found, populate search bar with scanned code
+        setSearchQuery(scannedCode);
+        setScanStatus({
+          type: "error",
+          message: `❌ No exact match found. Search updated with: "${scannedCode}"`,
+        });
+        
+        // Close scanner mode after 3 seconds
+        setTimeout(() => {
+          setIsScannerMode(false);
+        }, 3000);
+      }
     }
-    setIsScannerOpen(false);
+  };
+
+  const handleScannerKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Most barcode scanners send Enter key after scanning
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const scannedCode = (e.target as HTMLInputElement).value;
+      handleScannerInput(scannedCode);
+      (e.target as HTMLInputElement).value = "";
+    }
   };
 
   const filteredProducts = useMemo(() => {
@@ -99,45 +183,69 @@ export function Searchbar() {
           className="h-10 bg-gray-800 border-none text-white focus:ring-2 focus:ring-yellow-500 flex-1"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
+          disabled={isScannerMode}
         />
         <Button
           size="icon"
           variant="outline"
-          className="bg-gray-800 hover:bg-gray-700 text-yellow-400"
-          onClick={() => setIsScannerOpen((prev) => !prev)}
+          className={`${
+            isScannerMode 
+              ? "bg-yellow-500 hover:bg-yellow-600 text-black" 
+              : "bg-gray-800 hover:bg-gray-700 text-yellow-400"
+          }`}
+          onClick={() => setIsScannerMode((prev) => !prev)}
         >
-          {isScannerOpen ? (
+          {isScannerMode ? (
             <X className="h-4 w-4" />
           ) : (
-            <Camera className="h-4 w-4" />
+            <Scan className="h-4 w-4" />
           )}
         </Button>
       </div>
 
-      {/* 📸 QR Scanner Overlay */}
-      {isScannerOpen && (
-        <div className="absolute inset-0 bg-black/80 z-50 flex flex-col items-center justify-center p-4 rounded-lg">
-          <div className="w-full max-w-sm rounded-lg overflow-hidden border border-gray-700 bg-gray-950 shadow-lg">
-            <QrScanner
-              onScan={(detectedCodes) => {
-                const code = detectedCodes?.[0]?.rawValue;
-                if (code) handleQrResult(code);
-              }}
-              onError={(error) => {
-                console.error("QR Scanner Error:", error);
-              }}
-              constraints={{ facingMode: "environment" }}
-              styles={{ container: { width: "100%" } }}
-            />
+      {/* 📸 Scanner Mode Interface */}
+      {isScannerMode && (
+        <div className="mb-4 p-4 bg-gray-800 border-2 border-yellow-500 rounded-lg space-y-3">
+          <div className="flex items-center gap-2">
+            <Scan className="h-5 w-5 text-yellow-500 animate-pulse" />
+            <h3 className="text-sm font-semibold text-yellow-500">Scanner Mode Active</h3>
           </div>
+          
+          {/* Hidden input that captures scanner data */}
+          <Input
+            ref={scannerInputRef}
+            type="text"
+            placeholder="Scan QR code or barcode..."
+            className="h-10 bg-gray-900 border-yellow-500 text-white focus:ring-2 focus:ring-yellow-500"
+            onKeyDown={handleScannerKeyDown}
+            autoComplete="off"
+          />
 
-          <Button
-            variant="secondary"
-            className="mt-4 text-white border-gray-700 hover:bg-gray-800"
-            onClick={() => setIsScannerOpen(false)}
-          >
-            Close Scanner
-          </Button>
+          {/* Status Message */}
+          {scanStatus.message && (
+            <Alert
+              className={`
+                ${scanStatus.type === "success" ? "bg-green-900/50 border-green-500" : ""}
+                ${scanStatus.type === "error" ? "bg-red-900/50 border-red-500" : ""}
+                ${scanStatus.type === "waiting" ? "bg-blue-900/50 border-blue-500" : ""}
+              `}
+            >
+              {scanStatus.type === "success" && <CheckCircle className="h-4 w-4 text-green-400" />}
+              {scanStatus.type === "error" && <AlertCircle className="h-4 w-4 text-red-400" />}
+              {scanStatus.type === "waiting" && <Scan className="h-4 w-4 text-blue-400 animate-pulse" />}
+              <AlertDescription className="text-white text-sm ml-2">
+                {scanStatus.message}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Instructions */}
+          <div className="bg-gray-900/50 rounded p-2">
+            <p className="text-xs text-gray-400">
+              💡 <strong>Tip:</strong> Point your scanner device at the QR code or barcode. 
+              The product will be automatically added to cart or search results.
+            </p>
+          </div>
         </div>
       )}
 

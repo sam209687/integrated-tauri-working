@@ -5,6 +5,7 @@ export interface ICustomer extends Document {
   _id: string;
   phone: string;
   name: string;
+  telegramChatId?: string;
   address?: string;
 }
 
@@ -21,6 +22,7 @@ const CustomerSchema: Schema = new Schema({
     required: [true, 'Customer name is required.'],
     trim: true,
   },
+  telegramChatId: { type: String },
   address: {
     type: String,
     trim: true,

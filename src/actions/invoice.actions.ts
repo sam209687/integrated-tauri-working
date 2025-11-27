@@ -1,3 +1,4 @@
+// src/actions/invoice.actions.ts (UPDATED)
 "use server";
 
 import { revalidatePath } from "next/cache";
@@ -5,10 +6,10 @@ import Invoice, { IInvoice } from "@/lib/models/invoice";
 import { connectToDatabase } from "@/lib/db";
 import Variant, { IVariant } from "@/lib/models/variant";
 import Product, { IProduct } from "@/lib/models/product";
+import { checkInvoiceForOffers } from "./offer-detection.action"; // ✅ NEW IMPORT
 
-// --------------------------------------------------------------------------
-// ✅ Standard Action Response
-// --------------------------------------------------------------------------
+// ... (keep all existing interfaces)
+
 interface ActionResponse<T = void> {
   success: boolean;
   data?: T;
@@ -16,13 +17,10 @@ interface ActionResponse<T = void> {
   error?: string;
 }
 
-// --------------------------------------------------------------------------
-// ✅ Reference Types for Populated Documents
-// --------------------------------------------------------------------------
 export interface ICustomerRef {
   _id: string;
   name: string;
-  phone: string; // ✅ made required for consistent typing
+  phone: string;
 }
 
 export interface IBilledByRef {
@@ -31,15 +29,11 @@ export interface IBilledByRef {
   email?: string;
 }
 
-// ✅ Type for invoices after population
 export type PopulatedInvoice = Omit<IInvoice, "customer" | "billedBy"> & {
   customer: ICustomerRef;
   billedBy: IBilledByRef;
 };
 
-// --------------------------------------------------------------------------
-// ✅ Helper Types
-// --------------------------------------------------------------------------
 interface InvoiceItem {
   variantId: string;
   name: string;
@@ -85,9 +79,6 @@ interface IVariantWithPopulatedProduct
   electricityCharges?: number;
 }
 
-// --------------------------------------------------------------------------
-// ✅ Invoice Creation Payload
-// --------------------------------------------------------------------------
 export type InvoiceDataPayload = {
   customerId: string;
   billedById: string;
@@ -108,9 +99,6 @@ export type InvoiceDataPayload = {
   paymentMethod: "cash" | "upi" | "card";
 };
 
-// --------------------------------------------------------------------------
-// 🧾 Generate Invoice Number
-// --------------------------------------------------------------------------
 async function generateInvoiceNumber(): Promise<string> {
   const now = new Date();
   const year = now.getFullYear();
@@ -139,9 +127,9 @@ async function generateInvoiceNumber(): Promise<string> {
   return `INV-RS-${paddedSequence}-${paddedMonth}-${year}`;
 }
 
-// --------------------------------------------------------------------------
-// 🧾 Create Invoice
-// --------------------------------------------------------------------------
+// ============================================================================
+// ✅ UPDATED: Create Invoice with Offer Detection
+// ============================================================================
 export async function createInvoice(
   invoiceData: InvoiceDataPayload
 ): Promise<ActionResponse<IInvoice>> {
@@ -162,6 +150,17 @@ export async function createInvoice(
       return { ...item, variantId: variantIdString };
     });
 
+    // ✅ NEW: Check for offer qualifications BEFORE creating invoice
+    const offerCheck = await checkInvoiceForOffers(
+      invoiceData.customerId,
+      normalizedItems.map(item => ({
+        variantId: item.variantId,
+        quantity: item.quantity,
+        price: item.price,
+      })),
+      invoiceData.totalPayable
+    );
+
     const newInvoice = new Invoice({
       invoiceNumber,
       customer: invoiceData.customerId,
@@ -173,23 +172,30 @@ export async function createInvoice(
       gstAmount: invoiceData.gstAmount,
       totalPayable: invoiceData.totalPayable,
       paymentMethod: invoiceData.paymentMethod,
+      offerQualifications: offerCheck.qualifications || [], // ✅ NEW
     });
 
     const savedInvoice = await newInvoice.save();
 
     revalidatePath("/admin/invoice");
     revalidatePath("/cashier/invoice");
+    revalidatePath("/admin/pos"); // ✅ NEW: Refresh POS to update offer counts
 
-    return { success: true, data: JSON.parse(JSON.stringify(savedInvoice)) };
+    return { 
+      success: true, 
+      data: JSON.parse(JSON.stringify(savedInvoice)),
+      message: offerCheck.qualifications && offerCheck.qualifications.length > 0
+        ? `Invoice created! Customer qualified for ${offerCheck.qualifications.filter(q => q.qualified).length} offer(s).`
+        : undefined
+    };
   } catch (error) {
     console.error("❌ Create invoice error:", error);
     return { success: false, message: "Failed to create invoice." };
   }
 }
 
-// --------------------------------------------------------------------------
-// 🧾 Get All Invoices (✅ FIXED)
-// --------------------------------------------------------------------------
+// ... (keep all other existing functions unchanged)
+
 export async function getInvoices(): Promise<
   ActionResponse<PopulatedInvoice[]>
 > {
@@ -199,7 +205,7 @@ export async function getInvoices(): Promise<
     const invoices = await Invoice.find()
       .populate<{ customer: ICustomerRef }>("customer", "name phone")
       .populate<{ billedBy: IBilledByRef }>("billedBy", "name email")
-      .lean<PopulatedInvoice[]>(); // ✅ fully typed lean()
+      .lean<PopulatedInvoice[]>();
 
     return { success: true, data: invoices };
   } catch (error) {
@@ -212,9 +218,6 @@ export async function getInvoices(): Promise<
   }
 }
 
-// --------------------------------------------------------------------------
-// 🧾 Cancel Invoice
-// --------------------------------------------------------------------------
 export async function cancelInvoice(
   invoiceId: string
 ): Promise<ActionResponse<IInvoice>> {
@@ -232,6 +235,7 @@ export async function cancelInvoice(
 
     revalidatePath("/admin/invoice");
     revalidatePath("/cashier/invoice");
+    revalidatePath("/admin/pos"); // ✅ NEW: Refresh POS to update offer counts
 
     return { success: true, data: JSON.parse(JSON.stringify(updatedInvoice)) };
   } catch (error) {
@@ -240,9 +244,6 @@ export async function cancelInvoice(
   }
 }
 
-// --------------------------------------------------------------------------
-// 🧾 Count Invoices by Customer
-// --------------------------------------------------------------------------
 export async function getInvoiceCountByCustomer(
   customerId: string
 ): Promise<ActionResponse<number>> {
@@ -256,9 +257,6 @@ export async function getInvoiceCountByCustomer(
   }
 }
 
-// --------------------------------------------------------------------------
-// 💰 Financial Metrics Calculation
-// --------------------------------------------------------------------------
 export async function getFinancialMetrics(
   fromDate?: Date,
   toDate?: Date

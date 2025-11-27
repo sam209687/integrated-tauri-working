@@ -15,12 +15,16 @@ import {
   BadgeIndianRupee,
   Store,
   Box,
+  PackageCheckIcon,
   TrendingUpDown,
   Amphora,
   ReceiptIndianRupee,
   UserCircle,
+  QrCodeIcon,
   ReceiptText,
   Loader2,
+  GiftIcon,
+  PrinterCheckIcon
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -81,6 +85,7 @@ export function AdminSidebarContent({
     { name: "Oil Expeller Charges", href: "/admin/oec", icon: Amphora },
     { name: "POS", href: "/admin/pos", icon: BadgeIndianRupee },
     { name: "Invoice", href: "/admin/invoice", icon: ReceiptText },
+    { name: "Offers", href: "/admin/offers", icon: GiftIcon },
     {
       name: "Messages",
       href: "/admin/messages",
@@ -227,6 +232,12 @@ export function AdminSidebarContent({
                   <Box className="mr-2 h-4 w-4" /> Generate Batch
                 </Link>
               </DropdownMenuItem>
+              {/* packing materials menu  */}
+              <DropdownMenuItem asChild>
+                <Link href="/admin/packingProds">
+                  <PackageCheckIcon className="mr-2 h-4 w-4" /> Packing Materials
+                </Link>
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -262,6 +273,21 @@ export function AdminSidebarContent({
                   <UserCircle className="mr-2 h-4 w-4" /> Currency
                 </Link>
               </DropdownMenuItem>
+
+              {/* telegram QR code  */}
+              <DropdownMenuItem asChild>
+                <Link href="/admin/telegram">
+                  <QrCodeIcon className="mr-2 h-4 w-4" /> Telegram QR Code
+                </Link>
+              </DropdownMenuItem>
+
+              {/* Printer Settings */}
+              <DropdownMenuItem asChild>
+                <Link href="/admin/printer-settings">
+                  <PrinterCheckIcon className="mr-2 h-4 w-4" /> Printer Settings
+                </Link>
+              </DropdownMenuItem>
+
             </DropdownMenuContent>
           </DropdownMenu>
         </nav>

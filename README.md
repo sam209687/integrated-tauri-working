@@ -52,3 +52,19 @@ Clean cmds
 <!-- build cmd of tauri  -->
 
 RUST_MIN_STACK=16777216 RUSTFLAGS="-Clink-arg=-fuse-ld=gold" npm run tauri build
+
+
+<!-- For bulk register in Telegram -->
+
+curl -X POST http://localhost:3000/api/customers/bulk-register \
+  -H "Content-Type: application/json" \
+  -d '{"chatId":"8559870798"}'
+
+  <!-- output will be -->
+
+  {
+  "success": true,
+  "message": "Successfully registered 150 customers",
+  "count": 150,
+  "chatId": "8559870798"
+}

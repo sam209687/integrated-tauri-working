@@ -8,19 +8,10 @@ import { useEffect, useState, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { subDays, startOfDay, endOfDay } from "date-fns"; 
 
-import {
-  getSalesDataByVariant,
-  type VariantSalesData,
-} from "@/actions/sales.actions";
-import { getSalesMetrics } from "@/actions/salesTracking.actions";
-import { getFinancialMetrics } from "@/actions/invoice.actions";
-
 import { MonthlySalesChart } from "./MonthlySalesChart";
 import { CustomerDetailsTable } from "./CustomerDetailsTable"; 
 import { SalesTrackingMetrics } from "./SalesTrackingMetrics";
 import { DashboardFilter } from "./DashboardFilter";
-// 💡 IMPORTANT: Ensure this import path is correct based on your file structure
-// import { PermanentCalendarCard } from "../PermanentCalendarCard"; 
 import { StockAlertCard } from "./StockAlertCard";
 import { BoardPriceCard } from "./BoardPriceCard"; 
 
@@ -30,7 +21,7 @@ import { useStockAlertStore } from "@/store/stockAlert.store";
 import { useBoardPriceStore } from "@/store/boardPrice.store"; 
 import { PackingMaterialAlertCard } from "./PackingMaterialAlertCard";
 import { PermanentCalendarCard } from "./PermanentCalendarCard";
-
+import { DashboardLoading } from "./DashboardLoading";
 
 const DynamicSalesOverviewChart = dynamic(
   () => import("./SaleOverviewChart").then((mod) => mod.SalesOverviewChart),
@@ -41,40 +32,24 @@ interface DashboardPageProps {
   initialData: DashboardData | null;
 }
 
-interface DepositableCharges {
-  packingCharges: number;
-  laborCharges: number;
-  electricityCharges: number;
-  oecCharges: number;
-}
-
-interface AllMetrics {
-  totalRevenue: number;
-  totalSales: number;
-  avgOrderValue: number;
-  totalProfit: number;
-  totalDeposits: number;
-  depositableCharges: DepositableCharges; 
-}
-
 // Helper functions for initializing the default 'Last 7 Days' filter
 const getStartOfLast7Days = () => startOfDay(subDays(new Date(), 7));
 const getEndOfToday = () => endOfDay(new Date());
 
-// 💡 FIX: Move chartColors definition outside the component
-const chartColors = [
-    "#8884d8",
-    "#82ca9d",
-    "#ffc658",
-    "#ff8042",
-    "#AF19FF",
-    "#FF008C",
-];
-
-
 export function DashboardPage({ initialData }: DashboardPageProps) {
-  const { dashboardData, isLoading, refreshData } = useAdminPanelStore();
+  // Main dashboard store
+  const { 
+    dashboardData, 
+    isLoading, 
+    salesData, 
+    allMetrics, 
+    isFilteredDataLoading,
+    fetchStaticData, 
+    fetchFilteredData,
+    refreshData 
+  } = useAdminPanelStore();
 
+  // Other stores for static data
   const { monthlySales, isLoading: isMonthlySalesLoading, fetchMonthlySales } = useMonthlySalesStore(); 
   
   const { 
@@ -99,28 +74,11 @@ export function DashboardPage({ initialData }: DashboardPageProps) {
     fetchLowStockAlerts 
   } = useStockAlertStore();
 
-  const [salesData, setSalesData] = useState<VariantSalesData[]>([]);
-  
-  const [allMetrics, setAllMetrics] = useState<AllMetrics>({
-    totalRevenue: 0,
-    totalSales: 0,
-    avgOrderValue: 0,
-    totalProfit: 0,
-    totalDeposits: 0,
-    depositableCharges: {
-        packingCharges: 0,
-        laborCharges: 0,
-        electricityCharges: 0,
-        oecCharges: 0,
-    },
-  });
-
   // State initialized to 'last7days' for default rendering
   const [activeFilterType, setActiveFilterType] = useState<string>('last7days');
   const [fromDate, setFromDate] = useState<Date | undefined>(getStartOfLast7Days());
   const [toDate, setToDate] = useState<Date | undefined>(getEndOfToday());
 
-  
   // Callback to update filter dates and type when DashboardFilter changes
   const handleFilterChange = useCallback(
     (filterType: string, newFromDate?: Date, newToDate?: Date) => {
@@ -141,94 +99,30 @@ export function DashboardPage({ initialData }: DashboardPageProps) {
     }
   }, []);
   
-  // Effect runs on mount and whenever fromDate or toDate changes to fetch data
+  // Effect 1: Run ONCE on mount for static data
   useEffect(() => {
-    if (initialData) {
-      useAdminPanelStore.setState({
-        dashboardData: initialData,
-        isLoading: false,
-      });
-    }
-
-    // Fetch dynamic data for the new components
+    // Fetch static dashboard data
+    fetchStaticData(initialData);
+    
+    // Fetch other static data from their respective stores
     fetchMonthlySales();
     fetchCustomerDetails(); 
     fetchLowStockAlerts(); 
     fetchBoardPrices(); 
+    
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty array = run once on mount
 
-    const fetchAllData = async () => {
-      try {
-        // Use the current fromDate and toDate state values for API calls
-        const [salesResult, basicMetricsResult, financialResult] =
-          await Promise.all([
-            getSalesDataByVariant(fromDate, toDate),
-            getSalesMetrics(fromDate, toDate),
-            getFinancialMetrics(fromDate, toDate),
-          ]);
-
-        const totalProfit =
-          financialResult.success && financialResult.data
-            ? financialResult.data.totalProfit
-            : 0;
-
-        const totalDeposits =
-          financialResult.success && financialResult.data
-            ? financialResult.data.totalDeposits
-            : 0;
-            
-        // Check if new depositable charges exist. If not, we fall back to the existing charges.
-        const newDepositableCharges = 
-            financialResult.success && financialResult.data && financialResult.data.depositableCharges
-            ? financialResult.data.depositableCharges
-            : null; // Set to null to clearly indicate no new data
-
-        if (salesResult.success && salesResult.data) {
-          const processedData = salesResult.data.map((item, index) => ({
-            ...item,
-            fill: chartColors[index % chartColors.length],
-          }));
-          setSalesData(processedData);
-        }
-
-        if (basicMetricsResult.success && basicMetricsResult.data) {
-            // Use functional update to safely access previous state
-            setAllMetrics((prev) => ({
-                ...basicMetricsResult.data,
-                totalProfit,
-                totalDeposits,
-                // Use new charges if available, otherwise use previous state's charges
-                depositableCharges: newDepositableCharges || prev.depositableCharges, 
-            }));
-        } else {
-            // Use functional update to safely access previous state
-            setAllMetrics((prev) => ({
-                ...prev,
-                totalProfit,
-                totalDeposits,
-                // Use new charges if available, otherwise use previous state's charges
-                depositableCharges: newDepositableCharges || prev.depositableCharges,
-            }));
-        }
-
-      } catch (err) {
-        console.error("❌ Dashboard fetch error:", err);
-      }
-    };
-
-    fetchAllData();
-  }, [
-    initialData, 
-    fromDate, 
-    toDate,   
-    fetchMonthlySales, 
-    fetchCustomerDetails,
-    fetchLowStockAlerts,
-    fetchBoardPrices,
-    // chartColors is now stable and does not need to be listed
-  ]); 
+  // Effect 2: Run when date filters change
+  useEffect(() => {
+    fetchFilteredData(fromDate, toDate);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fromDate, toDate]); // Only re-run when dates change
 
   if (isLoading || !dashboardData || isMonthlySalesLoading || isCustomerLoading || isStockAlertLoading || isBoardPriceLoading) {
-    return <div>Loading...</div>;
+    return <div>
+      <DashboardLoading/>
+    </div>;
   }
 
   return (
@@ -244,11 +138,10 @@ export function DashboardPage({ initialData }: DashboardPageProps) {
             activeFilterType={activeFilterType}
             currentFromDate={fromDate}
             currentToDate={toDate}
-            // 🛠️ FIX: Add key prop to force remount/reset of local state when filter type changes.
             key={activeFilterType} 
           />
           
-          <Button onClick={refreshData} disabled={isLoading}>
+          <Button onClick={refreshData} disabled={isLoading || isFilteredDataLoading}>
             <RefreshCcw className="h-4 w-4 mr-2" /> Refresh Data
           </Button>
         </div>
@@ -270,7 +163,6 @@ export function DashboardPage({ initialData }: DashboardPageProps) {
           <DynamicSalesOverviewChart data={salesData} />
         </div>
         <div className="lg:col-span-2">
-          {/* 🟢 FIX: Props are correctly passed here and accepted by PermanentCalendarCard */}
           <PermanentCalendarCard
             selectedDate={toDate}
             onDateChange={handleCalendarDateChange}
@@ -310,7 +202,6 @@ export function DashboardPage({ initialData }: DashboardPageProps) {
             error={boardPriceError}
         />
       </div>
-      
     </div>
   );
 }
