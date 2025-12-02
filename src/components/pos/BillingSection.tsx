@@ -47,7 +47,7 @@ type InvoiceToSend = {
   invoiceNumber: string;
   items: InvoiceDataPayload["items"];
   totalPayable: number;
-  offerQualifications?: IInvoiceOfferQualification[]; // ✅ Add this
+  offerQualifications?: IInvoiceOfferQualification[];
 };
 
 export function BillingSection() {
@@ -103,6 +103,7 @@ export function BillingSection() {
   const [paidAmount, setPaidAmount] = useState(0);
   const [isOilExpelling, setIsOilExpelling] = useState(false);
   const [excludePacking, setExcludePacking] = useState(false);
+  const [packingCharges, setPackingCharges] = useState(0);
 
   // ✅ Offer Modal State
   const [showOfferModal, setShowOfferModal] = useState(false);
@@ -132,10 +133,10 @@ export function BillingSection() {
   }, [cart, isGstEnabled]);
 
   const totalPayable = useMemo(() => {
-    const packingDiscount = excludePacking ? 10 : 0;
+    const packingDiscount = excludePacking ? packingCharges : 0;
     const total = subtotal - discount - packingDiscount + totalGstAmount;
     return total > 0 ? total : 0;
-  }, [subtotal, discount, excludePacking, totalGstAmount]);
+  }, [subtotal, discount, excludePacking, packingCharges, totalGstAmount]);
 
   const changeAmount = useMemo(() => {
     if (paymentMethod !== "cash" || paidAmount < totalPayable) return 0;
@@ -185,6 +186,7 @@ export function BillingSection() {
     setPaymentMethod("cash");
     setIsOilExpelling(false);
     setExcludePacking(false);
+    setPackingCharges(0);
   };
 
   const handleAddOec = () => {
@@ -202,7 +204,6 @@ export function BillingSection() {
     setOecQuantity(0);
   };
 
-  // ✅ Updated: Send PDF invoice to Telegram with proper return type
   async function sendPdfToTelegram(
     invoice: InvoiceToSend,
     customerData: { name: string; phone: string },
@@ -286,19 +287,17 @@ export function BillingSection() {
           })),
         subtotal,
         discount,
-        packingChargeDiscount: excludePacking ? 10 : 0,
+        packingChargeDiscount: excludePacking ? packingCharges : 0,
         gstAmount: totalGstAmount,
         totalPayable,
         paymentMethod,
       };
 
-      // Save invoice to database
       const result = await createInvoice(invoicePayload);
 
       if (result.success && result.data) {
         toast.success("Invoice saved successfully!");
 
-        // ✅ Check for offer qualifications
         if (
           result.data.offerQualifications &&
           result.data.offerQualifications.length > 0
@@ -314,10 +313,8 @@ export function BillingSection() {
           }
         }
 
-        // Open print modal
         openModal(result.data);
 
-        // ✅ Prepare invoice data for Telegram (include offerQualifications)
         const invoiceToSend: InvoiceToSend = {
           invoiceNumber:
             (result.data as any).invoiceNumber ??
@@ -336,7 +333,7 @@ export function BillingSection() {
             hsn: isGstEnabled ? (item.product?.tax?.hsn ?? "") : "",
           })),
           totalPayable,
-          offerQualifications: result.data.offerQualifications, // ✅ Include prizes
+          offerQualifications: result.data.offerQualifications,
         };
 
         const customerData = {
@@ -344,13 +341,12 @@ export function BillingSection() {
           phone: (customer as any)?.phone ?? "",
         };
 
-        // ✅ AUTO-REGISTER: Check if customer has Telegram, if not, register them
         let chatId = (customer as any)?.telegramChatId;
 
         if (!chatId) {
           console.log("⚡ Customer not registered, auto-registering...");
 
-          const storeChatId = "8559870798"; // Your store's Telegram chat ID
+          const storeChatId = "8559870798";
 
           try {
             const autoRegisterResponse = await fetch(
@@ -378,7 +374,7 @@ export function BillingSection() {
             }
           } catch (error) {
             console.error("❌ Auto-registration error:", error);
-            chatId = storeChatId; // Fallback to store chat
+            chatId = storeChatId;
           }
         } else {
           console.log("✅ Customer already registered with chat ID:", chatId);
@@ -392,7 +388,7 @@ export function BillingSection() {
         console.log("   Chat ID Type:", typeof chatId);
         console.log("   Is Chat ID null?:", chatId === null);
         console.log("   Is Chat ID undefined?:", chatId === undefined);
-        // ✅ Send invoice to Telegram with proper handling
+
         const telegramResult = await sendPdfToTelegram(
           invoiceToSend,
           customerData,
@@ -411,7 +407,7 @@ export function BillingSection() {
         } else {
           toast.error("⚠️ Failed to send invoice via Telegram");
         }
-        // Update stock quantities
+
         const stockUpdatePayload = cart
           .filter((item) => item.type === "variant")
           .map((item) => ({
@@ -421,11 +417,9 @@ export function BillingSection() {
 
         await updateStocksAfterSale(stockUpdatePayload);
 
-        // Refresh products
         const { fetchProducts } = usePosStore.getState();
         await fetchProducts();
 
-        // Clear form
         handleClear();
       } else {
         toast.error(result.message || "Failed to save invoice.");
@@ -457,7 +451,6 @@ export function BillingSection() {
   return (
     <>
       <div className="bg-gray-900 p-4 rounded-lg text-gray-200 h-full flex flex-col">
-        {/* TOP */}
         <div>
           <div className="flex items-center justify-between">
             <h3 className="text-xl font-bold">Cart ({cart.length})</h3>
@@ -472,69 +465,48 @@ export function BillingSection() {
             <div className="flex flex-col gap-2">
               <div className="flex items-center gap-2 text-xs">
                 <div className="relative flex-1">
-                  <Popover
-                    open={
-                      suggestions.length > 0 &&
-                      phone.length >= 3 &&
-                      phone.length < 10
-                    }
-                    modal={false}
-                    onOpenChange={() => {}}
-                  >
-                    <PopoverTrigger asChild>
-                      <Input
-                        ref={inputRef}
-                        placeholder="Phone Number"
-                        className="h-8 bg-gray-700 border-none text-white"
-                        type="tel"
-                        value={phone}
-                        onChange={(e) => {
-                          const rawValue = e.target.value.replace(/\D/g, "");
-                          setPhone(rawValue.slice(0, 10));
-                        }}
-                        maxLength={10}
-                      />
-                    </PopoverTrigger>
-
-                    <PopoverContent className="w-[300px] p-0 bg-gray-800 border-gray-700 max-h-60 overflow-y-auto z-50">
-                      {isLoading && (
-                        <div className="p-2 flex items-center justify-center">
-                          <Loader2 className="animate-spin h-4 w-4" />
-                        </div>
-                      )}
-
-                      {!isLoading &&
-                        suggestions.length === 0 &&
-                        phone.length >= 3 && (
-                          <p className="p-2 text-xs text-gray-400">
-                            No matches found.
-                          </p>
-                        )}
-
-                      {suggestions.map((cust) => (
-                        <div
-                          key={cust._id}
-                          className="p-2 border-b border-gray-700 hover:bg-gray-700 cursor-pointer text-xs"
-                          onClick={() => {
-                            selectCustomer(cust);
-                            useCustomerStore.setState({ suggestions: [] });
-                            inputRef.current?.focus();
-                          }}
-                        >
-                          <span className="font-bold text-white">
-                            {cust.phone}
-                          </span>
-                          <span className="ml-2 text-gray-400">
-                            {cust.name}
-                          </span>
-                        </div>
-                      ))}
-                    </PopoverContent>
-                  </Popover>
+                  <Input
+                    ref={inputRef}
+                    placeholder="Phone Number"
+                    className="h-8 bg-gray-700 border-none text-white"
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => {
+                      const rawValue = e.target.value.replace(/\D/g, "");
+                      setPhone(rawValue.slice(0, 10));
+                    }}
+                    maxLength={10}
+                  />
 
                   {isLoading && (
                     <Loader2 className="animate-spin h-4 w-4 absolute right-2 top-2 text-gray-400" />
                   )}
+
+                  {suggestions.length > 0 &&
+                    phone.length >= 3 &&
+                    phone.length < 10 && (
+                      <div className="absolute top-full left-0 mt-1 w-[300px] p-0 bg-gray-800 border border-gray-700 rounded-md max-h-60 overflow-y-auto z-50 shadow-lg">
+                        {suggestions.map((cust) => (
+                          <div
+                            key={cust._id}
+                            className="p-2 border-b border-gray-700 hover:bg-gray-700 cursor-pointer text-xs"
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              selectCustomer(cust);
+                              useCustomerStore.setState({ suggestions: [] });
+                              setTimeout(() => inputRef.current?.focus(), 0);
+                            }}
+                          >
+                            <span className="font-bold text-white">
+                              {cust.phone}
+                            </span>
+                            <span className="ml-2 text-gray-400">
+                              {cust.name}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                 </div>
 
                 <Input
@@ -557,8 +529,7 @@ export function BillingSection() {
                   name.trim().length > 1 && (
                     <Button
                       onClick={createCustomer}
-                      variant="outline"
-                      className="h-8 px-2 py-1 text-black bg-yellow-500 hover:bg-yellow-600 font-semibold text-xs"
+                      className="h-8 px-3 bg-yellow-500 hover:bg-yellow-600 text-black font-semibold text-xs border-none"
                       disabled={isLoading}
                     >
                       {isLoading ? (
@@ -579,7 +550,6 @@ export function BillingSection() {
           </div>
         </div>
 
-        {/* MIDDLE */}
         <BillingSectionSecond
           cart={cart}
           subtotal={subtotal}
@@ -610,9 +580,10 @@ export function BillingSection() {
           handleAddOec={handleAddOec}
           excludePacking={excludePacking}
           setExcludePacking={setExcludePacking}
+          packingCharges={packingCharges}
+          setPackingCharges={setPackingCharges}
         />
 
-        {/* BOTTOM */}
         <div>
           <Separator className="bg-gray-700 my-4" />
 
@@ -643,7 +614,6 @@ export function BillingSection() {
         </div>
       </div>
 
-      {/* ✅ Offer Success Modal */}
       <Dialog open={showOfferModal} onOpenChange={setShowOfferModal}>
         <DialogContent className="sm:max-w-md bg-linear-to-br from-yellow-50 via-orange-50 to-pink-50 dark:from-yellow-950 dark:via-orange-950 dark:to-pink-950 border-4 border-yellow-400">
           <DialogHeader>

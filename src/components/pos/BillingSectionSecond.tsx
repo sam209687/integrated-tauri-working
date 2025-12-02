@@ -61,7 +61,7 @@ interface BillingSectionSecondProps {
   toggleGst: () => void;
 
   // suggestions
-  suggestedProducts: ProductSuggestion[]; // Uses the imported canonical type
+  suggestedProducts: ProductSuggestion[];
   isSuggestionLoading: boolean;
   fetchSuggestions: (amount: number) => void;
   clearSuggestions: () => void;
@@ -80,6 +80,8 @@ interface BillingSectionSecondProps {
   // packing & others
   excludePacking: boolean;
   setExcludePacking: (v: boolean) => void;
+  packingCharges: number;
+  setPackingCharges: (n: number) => void;
 }
 
 export default function BillingSectionSecond({
@@ -112,6 +114,8 @@ export default function BillingSectionSecond({
   handleAddOec,
   excludePacking,
   setExcludePacking,
+  packingCharges,
+  setPackingCharges,
 }: BillingSectionSecondProps) {
   return (
     <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 no-scrollbar">
@@ -219,10 +223,8 @@ export default function BillingSectionSecond({
                       className="flex items-center justify-between text-xs p-2 rounded-md hover:bg-gray-700"
                     >
                       <div>
-                        {/* Accesses top-level 'productName' and 'name' (optional) */}
                         <div>{product.productName || product.name}</div>
                         <div className="text-gray-400">
-                          {/* Accesses top-level 'unitName' field */}
                           {product.variantVolume} {product.unitName}
                         </div>
                       </div>
@@ -306,6 +308,19 @@ export default function BillingSectionSecond({
         />
         <span className="text-sm">Exclude Packing Charges</span>
       </div>
+
+      {excludePacking && (
+        <div className="flex justify-between items-center text-sm">
+          <span>Packing Charges (₹):</span>
+          <Input
+            type="number"
+            placeholder="0"
+            className="h-8 w-20 bg-gray-800 border-none text-white text-xs text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            value={packingCharges || ""}
+            onChange={(e) => setPackingCharges(e.target.valueAsNumber || 0)}
+          />
+        </div>
+      )}
 
       <div className="flex items-center space-x-2">
         <input

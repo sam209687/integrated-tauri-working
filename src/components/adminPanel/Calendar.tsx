@@ -18,8 +18,8 @@ import {
   startOfDay,
   differenceInCalendarDays,
 } from "date-fns";
-import { RefreshCcw, ChevronLeft, ChevronRight, Upload } from "lucide-react";
-import { motion } from "framer-motion";
+import { RefreshCcw, ChevronLeft, ChevronRight, Upload, CalendarDays, Sparkles } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { getIndianHolidays } from "@/actions/calendar.Actions";
@@ -40,6 +40,7 @@ export function CalendarComponent() {
   const [dialogDate, setDialogDate] = React.useState<Date | null>(null);
   const [eventName, setEventName] = React.useState("");
   const [isLoaded, setIsLoaded] = React.useState(false);
+  const [hoveredDate, setHoveredDate] = React.useState<string | null>(null);
 
   const fetchHolidays = React.useCallback(async () => {
     setIsLoading(true);
@@ -135,124 +136,256 @@ export function CalendarComponent() {
   return (
     <>
       <motion.div
-        initial={{ opacity: 0, y: 15 }}
+        initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        className="bg-card text-card-foreground border rounded-xl p-6 w-full max-w-4xl mx-auto shadow-md"
+        transition={{ duration: 0.5, delay: 0.4 }}
+        className="relative group"
       >
-        {/* Header */}
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <h2 className="text-base font-semibold">
-              Calendar {format(currentMonth, "yyyy")}
-            </h2>
-            {displayHolidays.length > 0 && (
-              <p className="text-xs text-yellow-500 animate-pulse">
-                Upcoming: {displayHolidays.map((h) => h.name).join(", ")}
-              </p>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => setCurrentMonth((prev) => subMonths(prev, 1))}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => setCurrentMonth((prev) => addMonths(prev, 1))}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={fetchHolidays}
-              disabled={isLoading}
-            >
-              <RefreshCcw
-                className={cn(
-                  "h-4 w-4 text-muted-foreground",
-                  isLoading && "animate-spin"
-                )}
-              />
-            </Button>
-          </div>
-        </div>
+        {/* Glow Effect */}
+        <motion.div
+          className="absolute inset-0 rounded-3xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+          style={{ background: 'rgba(59, 130, 246, 0.3)' }}
+        />
 
-        <p className="text-center text-sm font-medium mb-3">
-          {format(currentMonth, "MMMM yyyy")}
-        </p>
+        <div className="relative backdrop-blur-2xl dark:bg-white/10 bg-white/70 dark:border-white/20 border-white/50 border rounded-3xl shadow-2xl overflow-hidden p-6">
+          {/* Animated Background */}
+          <motion.div
+            className="absolute inset-0 bg-linear-to-br dark:from-blue-500/10 dark:to-cyan-500/10 from-blue-100 to-cyan-100 opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+            animate={{ rotate: [0, 360] }}
+            transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+          />
 
-        {/* Weekday headers */}
-        <div className="grid grid-cols-7 text-center text-[13px] font-semibold text-muted-foreground mb-2">
-          {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((day) => (
-            <div key={day}>{day}</div>
-          ))}
-        </div>
+          {/* Shimmer Effect */}
+          <motion.div
+            className="absolute inset-0 bg-linear-to-r from-transparent via-white/20 to-transparent"
+            animate={{ x: ['-100%', '100%'] }}
+            transition={{ duration: 3, repeat: Infinity, repeatDelay: 5 }}
+          />
 
-        {/* Calendar grid */}
-        <div className="grid grid-cols-7 gap-1 text-sm">
-          {days.map((day) => {
-            const dateStr = format(day, "yyyy-MM-dd");
-            const isCurrentMonth = isSameMonth(day, currentMonth);
-            const isToday = isSameDay(day, new Date());
-            const isSelected = isSameDay(day, selectedDate);
-            const holidayName = holidayMap.get(dateStr);
-            const customEvent = customEvents.find((e) => e.date === dateStr);
-
-            return (
-              <div
-                key={dateStr}
-                className="relative flex flex-col items-center"
-              >
-                <button
-                  title={[customEvent?.name, holidayName]
-                    .filter(Boolean)
-                    .join(" | ")}
-                  onClick={() => handleDateSelect(day)}
-                  className={cn(
-                    "relative flex items-center justify-center h-9 w-9 rounded-lg transition-all duration-150",
-                    isCurrentMonth
-                      ? "text-foreground"
-                      : "text-muted-foreground opacity-50",
-                    isSelected
-                      ? "bg-primary text-primary-foreground scale-105"
-                      : isToday
-                        ? "border border-primary text-primary"
-                        : "hover:bg-accent hover:text-accent-foreground"
+          {/* Content */}
+          <div className="relative z-10">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <motion.div
+                    animate={{ rotate: [0, 360] }}
+                    transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                  >
+                    <CalendarDays className="h-5 w-5 text-blue-500" />
+                  </motion.div>
+                  <h2 className="text-xl font-bold dark:text-white text-gray-900">
+                    Calendar {format(currentMonth, "yyyy")}
+                  </h2>
+                </div>
+                <AnimatePresence>
+                  {displayHolidays.length > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="flex items-center gap-2 mt-2"
+                    >
+                      <Sparkles className="h-4 w-4 text-yellow-500" />
+                      <p className="text-xs text-yellow-500 animate-pulse">
+                        Upcoming: {displayHolidays.map((h) => h.name).join(", ")}
+                      </p>
+                    </motion.div>
                   )}
-                >
-                  {format(day, "d")}
-                  {holidayName && (
-                    <span className="absolute bottom-0.5 right-0.5 w-1.5 h-1.5 bg-yellow-500 rounded-full" />
-                  )}
-                  {customEvent && (
-                    <span className="absolute bottom-0.5 left-0.5 w-1.5 h-1.5 bg-green-500 rounded-full" />
-                  )}
-                </button>
-
-                {/* File upload button */}
-                {isSameDay(day, selectedDate) && (
-                  <label className="absolute -bottom-5 cursor-pointer">
-                    <input
-                      type="file"
-                      accept="image/*,application/pdf"
-                      className="hidden"
-                      onChange={(e) => handleFileUpload(e, dateStr)}
-                    />
-                    <Upload className="h-3.5 w-3.5 text-muted-foreground hover:text-primary" />
-                  </label>
-                )}
+                </AnimatePresence>
               </div>
-            );
-          })}
+              
+              <div className="flex items-center gap-2">
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 rounded-xl dark:bg-white/5 bg-gray-100 dark:hover:bg-white/10 hover:bg-gray-200 transition-all duration-300"
+                    onClick={() => setCurrentMonth((prev) => subMonths(prev, 1))}
+                  >
+                    <ChevronLeft className="h-4 w-4 dark:text-white text-gray-900" />
+                  </Button>
+                </motion.div>
+                
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 rounded-xl dark:bg-white/5 bg-gray-100 dark:hover:bg-white/10 hover:bg-gray-200 transition-all duration-300"
+                    onClick={() => setCurrentMonth((prev) => addMonths(prev, 1))}
+                  >
+                    <ChevronRight className="h-4 w-4 dark:text-white text-gray-900" />
+                  </Button>
+                </motion.div>
+                
+                <motion.div 
+                  whileHover={{ scale: 1.05, rotate: 180 }} 
+                  whileTap={{ scale: 0.95 }}
+                >
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 rounded-xl dark:bg-white/5 bg-gray-100 dark:hover:bg-white/10 hover:bg-gray-200 transition-all duration-300"
+                    onClick={fetchHolidays}
+                    disabled={isLoading}
+                  >
+                    <RefreshCcw
+                      className={cn(
+                        "h-4 w-4 dark:text-white text-gray-900",
+                        isLoading && "animate-spin"
+                      )}
+                    />
+                  </Button>
+                </motion.div>
+              </div>
+            </div>
+
+            {/* Month Display */}
+            <motion.p
+              key={currentMonth.toString()}
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-center text-lg font-semibold mb-4 dark:text-white text-gray-900"
+            >
+              {format(currentMonth, "MMMM yyyy")}
+            </motion.p>
+
+            {/* Weekday headers */}
+            <div className="grid grid-cols-7 text-center text-sm font-semibold dark:text-gray-400 text-gray-600 mb-3">
+              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day, index) => (
+                <motion.div
+                  key={day}
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  className="py-2"
+                >
+                  {day}
+                </motion.div>
+              ))}
+            </div>
+
+            {/* Calendar grid */}
+            <div className="grid grid-cols-7 gap-2">
+              {days.map((day, index) => {
+                const dateStr = format(day, "yyyy-MM-dd");
+                const isCurrentMonth = isSameMonth(day, currentMonth);
+                const isToday = isSameDay(day, new Date());
+                const isSelected = isSameDay(day, selectedDate);
+                const holidayName = holidayMap.get(dateStr);
+                const customEvent = customEvents.find((e) => e.date === dateStr);
+
+                return (
+                  <motion.div
+                    key={dateStr}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: index * 0.01 }}
+                    className="relative flex flex-col items-center"
+                  >
+                    <motion.button
+                      title={[customEvent?.name, holidayName]
+                        .filter(Boolean)
+                        .join(" | ")}
+                      onClick={() => handleDateSelect(day)}
+                      onMouseEnter={() => setHoveredDate(dateStr)}
+                      onMouseLeave={() => setHoveredDate(null)}
+                      whileHover={{ scale: 1.1, y: -2 }}
+                      whileTap={{ scale: 0.95 }}
+                      className={cn(
+                        "relative flex items-center justify-center h-10 w-10 rounded-xl transition-all duration-300 font-medium",
+                        isCurrentMonth
+                          ? "dark:text-white text-gray-900"
+                          : "dark:text-gray-600 text-gray-400 opacity-50",
+                        isSelected
+                          ? "bg-linear-to-br from-blue-500 to-cyan-500 text-white shadow-lg scale-110"
+                          : isToday
+                            ? "dark:bg-white/10 bg-blue-100 dark:text-blue-400 text-blue-600 border-2 border-blue-500"
+                            : "dark:bg-white/5 bg-gray-50 dark:hover:bg-white/10 hover:bg-gray-100"
+                      )}
+                    >
+                      {/* Glow for selected date */}
+                      {isSelected && (
+                        <motion.div
+                          className="absolute inset-0 rounded-xl blur-md"
+                          style={{ background: 'rgba(59, 130, 246, 0.5)' }}
+                          animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.8, 0.5] }}
+                          transition={{ duration: 2, repeat: Infinity }}
+                        />
+                      )}
+                      
+                      <span className="relative z-10">{format(day, "d")}</span>
+                      
+                      {/* Event indicators */}
+                      <div className="absolute bottom-1 flex gap-1">
+                        {holidayName && (
+                          <motion.span
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            className="w-1.5 h-1.5 bg-yellow-500 rounded-full shadow-lg"
+                          />
+                        )}
+                        {customEvent && (
+                          <motion.span
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            className="w-1.5 h-1.5 bg-green-500 rounded-full shadow-lg"
+                          />
+                        )}
+                      </div>
+                    </motion.button>
+
+                    {/* File upload button */}
+                    <AnimatePresence>
+                      {isSameDay(day, selectedDate) && (
+                        <motion.label
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -10 }}
+                          className="absolute -bottom-6 cursor-pointer"
+                        >
+                          <input
+                            type="file"
+                            accept="image/*,application/pdf"
+                            className="hidden"
+                            onChange={(e) => handleFileUpload(e, dateStr)}
+                          />
+                          <motion.div
+                            whileHover={{ scale: 1.2, rotate: 10 }}
+                            whileTap={{ scale: 0.9 }}
+                            className="p-1 rounded-lg dark:bg-white/10 bg-gray-200 dark:hover:bg-white/20 hover:bg-gray-300 transition-all duration-300"
+                          >
+                            <Upload className="h-3.5 w-3.5 dark:text-white text-gray-900" />
+                          </motion.div>
+                        </motion.label>
+                      )}
+                    </AnimatePresence>
+                  </motion.div>
+                );
+              })}
+            </div>
+
+            {/* Legend */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.6 }}
+              className="mt-6 flex flex-wrap justify-center gap-4"
+            >
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg dark:bg-white/5 bg-gray-100">
+                <span className="w-2 h-2 bg-yellow-500 rounded-full" />
+                <span className="text-xs dark:text-gray-300 text-gray-600">Holiday</span>
+              </div>
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg dark:bg-white/5 bg-gray-100">
+                <span className="w-2 h-2 bg-green-500 rounded-full" />
+                <span className="text-xs dark:text-gray-300 text-gray-600">Event</span>
+              </div>
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg dark:bg-white/5 bg-gray-100">
+                <span className="w-2 h-2 bg-blue-500 rounded-full" />
+                <span className="text-xs dark:text-gray-300 text-gray-600">Today</span>
+              </div>
+            </motion.div>
+          </div>
         </div>
       </motion.div>
 
