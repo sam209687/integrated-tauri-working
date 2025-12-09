@@ -27,23 +27,26 @@ const isValidPrice = (value: number | string | undefined): boolean => {
 // Component to manage the state of a single editable price row
 const EditablePriceRow = ({ product, index }: { product: BoardPriceProduct; index: number }) => {
     const { updatePrice } = useBoardPriceStore();
-    const [currentPrice, setCurrentPrice] = useState(product.sellingPrice.toFixed(2));
+    const [currentPrice, setCurrentPrice] = useState(product.sellingPrice.toString());
     const [isUpdating, setIsUpdating] = useState(false);
     const [isHovered, setIsHovered] = useState(false);
     const [isFocused, setIsFocused] = useState(false);
     
     const isPriceChanged = useMemo(() => {
-        return parseFloat(currentPrice) !== product.sellingPrice;
+        const newPrice = parseFloat(currentPrice);
+        return !isNaN(newPrice) && newPrice !== product.sellingPrice;
     }, [currentPrice, product.sellingPrice]);
 
     useEffect(() => {
-        if (parseFloat(currentPrice) !== product.sellingPrice) {
-             setCurrentPrice(product.sellingPrice.toFixed(2));
-        }
-    }, [product.sellingPrice, currentPrice]);
+        setCurrentPrice(product.sellingPrice.toString());
+    }, [product.sellingPrice]);
 
     const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setCurrentPrice(e.target.value); 
+        const value = e.target.value;
+        // Allow empty, numbers, and decimal point
+        if (value === '' || /^\d*\.?\d*$/.test(value)) {
+            setCurrentPrice(value);
+        }
     };
 
     const handleUpdate = async () => {
@@ -99,6 +102,28 @@ const EditablePriceRow = ({ product, index }: { product: BoardPriceProduct; inde
                     transition={{ delay: index * 0.03 + 0.1 }}
                     className="flex items-center gap-2"
                 >
+                    <span className="w-1.5 h-1.5 bg-purple-500 rounded-full" />
+                    {product.variantVolume || 'N/A'}
+                </motion.div>
+            </TableCell>
+            <TableCell className="dark:text-gray-400 text-gray-600">
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: index * 0.03 + 0.15 }}
+                    className="flex items-center gap-2"
+                >
+                    <span className="w-1.5 h-1.5 bg-orange-500 rounded-full" />
+                    {product.unit?.name || 'N/A'}
+                </motion.div>
+            </TableCell>
+            <TableCell className="dark:text-gray-400 text-gray-600">
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: index * 0.03 + 0.2 }}
+                    className="flex items-center gap-2"
+                >
                     <span className="w-1.5 h-1.5 bg-green-500 rounded-full" />
                     {product.productCode}
                 </motion.div>
@@ -107,12 +132,12 @@ const EditablePriceRow = ({ product, index }: { product: BoardPriceProduct; inde
                 <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    transition={{ delay: index * 0.03 + 0.2 }}
+                    transition={{ delay: index * 0.03 + 0.25 }}
                     className="relative"
                 >
                     <Input
-                        type="number"
-                        step="0.01"
+                        type="text"
+                        inputMode="decimal"
                         value={currentPrice}
                         onChange={handlePriceChange}
                         onKeyDown={handleKeyDown}
@@ -153,21 +178,16 @@ const EditablePriceRow = ({ product, index }: { product: BoardPriceProduct; inde
                         disabled={isUpdating || !isPriceChanged || !isValidPrice(currentPrice)}
                         className={`h-8 text-xs font-semibold transition-all duration-300 ${
                             isPriceChanged && isValidPrice(currentPrice)
-                                ? 'bg-linear-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white shadow-lg'
-                                : 'dark:bg-gray-700 bg-gray-200 dark:text-gray-500 text-gray-400'
+                                ? 'bg-linear-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white shadow-lg border-none'
+                                : 'bg-gray-600 hover:bg-gray-700 text-gray-300 border-none'
                         }`}
                     >
                         {isUpdating ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : isPriceChanged ? (
+                        ) : (
                             <>
                                 <CheckCircle className="h-3.5 w-3.5 mr-1" />
                                 Update
-                            </>
-                        ) : (
-                            <>
-                                <Edit3 className="h-3.5 w-3.5 mr-1" />
-                                Edit
                             </>
                         )}
                     </Button>
@@ -249,7 +269,7 @@ export function BoardPriceCard({ data, totalCount, isLoading, error }: BoardPric
       <Card className="relative backdrop-blur-2xl dark:bg-white/10 bg-white/70 dark:border-white/20 border-white/50 border rounded-3xl shadow-2xl overflow-hidden h-full flex flex-col">
         {/* Animated Background */}
         <motion.div
-          className="absolute inset-0 bg-linearto-br dark:from-blue-500/10 dark:to-cyan-500/10 from-blue-100 to-cyan-100 opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+          className="absolute inset-0 bg-linear-to-br dark:from-blue-500/10 dark:to-cyan-500/10 from-blue-100 to-cyan-100 opacity-0 group-hover:opacity-100 transition-opacity duration-500"
           animate={{ rotate: [0, 360] }}
           transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
         />
@@ -276,7 +296,7 @@ export function BoardPriceCard({ data, totalCount, isLoading, error }: BoardPric
                     scale: hoveredHeader ? 1.1 : 1
                   }}
                   transition={{ duration: 0.5 }}
-                  className="p-2 rounded-xl bg-linearto-br from-blue-500 to-cyan-500 shadow-lg"
+                  className="p-2 rounded-xl bg-linear-to-br from-blue-500 to-cyan-500 shadow-lg"
                 >
                   <DollarSign className="h-5 w-5 text-white" />
                 </motion.div>
@@ -320,6 +340,18 @@ export function BoardPriceCard({ data, totalCount, isLoading, error }: BoardPric
                     </TableHead>
                     <TableHead className="dark:text-gray-300 text-gray-700 font-bold">
                       <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 bg-purple-500 rounded-full" />
+                        Volume
+                      </div>
+                    </TableHead>
+                    <TableHead className="dark:text-gray-300 text-gray-700 font-bold">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 bg-orange-500 rounded-full" />
+                        Unit
+                      </div>
+                    </TableHead>
+                    <TableHead className="dark:text-gray-300 text-gray-700 font-bold">
+                      <div className="flex items-center gap-2">
                         <span className="w-2 h-2 bg-green-500 rounded-full" />
                         Code
                       </div>
@@ -346,7 +378,7 @@ export function BoardPriceCard({ data, totalCount, isLoading, error }: BoardPric
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={4} className="text-center py-12">
+                        <TableCell colSpan={6} className="text-center py-12">
                           <motion.div
                             initial={{ scale: 0.8, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
@@ -393,8 +425,8 @@ export function BoardPriceCard({ data, totalCount, isLoading, error }: BoardPric
         </div>
 
         {/* Corner Decorations */}
-        <div className="absolute -bottom-8 -right-8 w-32 h-32 bg-linearto-br from-blue-500 to-cyan-500 opacity-20 rounded-full blur-3xl" />
-        <div className="absolute -top-8 -left-8 w-32 h-32 bg-linearto-br from-blue-500 to-cyan-500 opacity-20 rounded-full blur-3xl" />
+        <div className="absolute -bottom-8 -right-8 w-32 h-32 bg-linear-to-br from-blue-500 to-cyan-500 opacity-20 rounded-full blur-3xl" />
+        <div className="absolute -top-8 -left-8 w-32 h-32 bg-linear-to-br from-blue-500 to-cyan-500 opacity-20 rounded-full blur-3xl" />
       </Card>
     </motion.div>
   );

@@ -1,4 +1,4 @@
-// src/components/adminPanel/dashboard/DashboardPage.tsx
+// src/components/adminPanel/dashboard/DashboardPage.tsx (UPDATED)
 "use client";
 
 import { useAdminPanelStore, DashboardData } from "@/store/adminPanelStore";
@@ -14,6 +14,7 @@ import { SalesTrackingMetrics } from "./SalesTrackingMetrics";
 import { DashboardFilter } from "./DashboardFilter";
 import { StockAlertCard } from "./StockAlertCard";
 import { BoardPriceCard } from "./BoardPriceCard"; 
+// import { ReportGenerator } from "./ReportGenerator"; // ✅ NEW: Import ReportGenerator
 
 import { useMonthlySalesStore } from "@/store/monthlySales.store"; 
 import { useCustomerDetailsStore } from "@/store/customerDetails.store"; 
@@ -22,6 +23,7 @@ import { useBoardPriceStore } from "@/store/boardPrice.store";
 import { PackingMaterialAlertCard } from "./PackingMaterialAlertCard";
 import { PermanentCalendarCard } from "./PermanentCalendarCard";
 import { DashboardLoading } from "./DashboardLoading";
+import { ReportGenerator } from "./dashboard/ReportGenerator";
 
 const DynamicSalesOverviewChart = dynamic(
   () => import("./SaleOverviewChart").then((mod) => mod.SalesOverviewChart),
@@ -130,7 +132,7 @@ export function DashboardPage({ initialData }: DashboardPageProps) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">Admin Dashboard</h1>
-        {/* All filter elements are in this single row div */}
+        {/* ✅ UPDATED: All filter and action buttons in a single row */}
         <div className="flex items-center space-x-4">
           
           <DashboardFilter 
@@ -140,6 +142,9 @@ export function DashboardPage({ initialData }: DashboardPageProps) {
             currentToDate={toDate}
             key={activeFilterType} 
           />
+          
+          {/* ✅ NEW: Report Generator Button */}
+          <ReportGenerator />
           
           <Button onClick={refreshData} disabled={isLoading || isFilteredDataLoading}>
             <RefreshCcw className="h-4 w-4 mr-2" /> Refresh Data

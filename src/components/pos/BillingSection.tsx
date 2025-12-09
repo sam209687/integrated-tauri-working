@@ -7,11 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -28,6 +23,10 @@ import { useSuggestionStore } from "@/store/suggestionStore";
 import { createInvoice, InvoiceDataPayload } from "@/actions/invoice.actions";
 import { useDebounce } from "@/hooks/use-debounce";
 import { toast } from "sonner";
+
+// Import Messaging Services
+import { sendPdfToTelegram } from "@/lib/telegram/sendPdfToTelegram";
+import { sendPdfToWhatsApp } from "@/lib/whatsapp/sendPdfToWhatsApp";
 
 import BillingSectionSecond from "./BillingSectionSecond";
 import type { ProductSuggestion } from "@/types/ProductSuggestion";
@@ -105,7 +104,6 @@ export function BillingSection() {
   const [excludePacking, setExcludePacking] = useState(false);
   const [packingCharges, setPackingCharges] = useState(0);
 
-  // ✅ Offer Modal State
   const [showOfferModal, setShowOfferModal] = useState(false);
   const [offerQualifications, setOfferQualifications] = useState<
     IInvoiceOfferQualification[]
@@ -204,50 +202,6 @@ export function BillingSection() {
     setOecQuantity(0);
   };
 
-  async function sendPdfToTelegram(
-    invoice: InvoiceToSend,
-    customerData: { name: string; phone: string },
-    chatId?: string | null
-  ) {
-    try {
-      const response = await fetch("/api/telegram/send-pdf", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          invoice,
-          customer: customerData,
-          chatId: chatId ?? null,
-        }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        console.error("Telegram API error:", result);
-        return {
-          success: false,
-          registered: false,
-          message: result.message,
-        };
-      }
-
-      return {
-        success: result.success,
-        registered: result.registered,
-        hasPrizes: result.hasPrizes || false,
-        prizeCount: result.prizeCount || 0,
-        message: result.message,
-      };
-    } catch (err) {
-      console.error("Failed to send Telegram message:", err);
-      return {
-        success: false,
-        registered: false,
-        message: "Network error",
-      };
-    }
-  }
-
   const handlePrintBill = async () => {
     if (!session?.user?.id) {
       toast.error("User not logged in.");
@@ -298,6 +252,7 @@ export function BillingSection() {
       if (result.success && result.data) {
         toast.success("Invoice saved successfully!");
 
+        // Check for offer qualifications
         if (
           result.data.offerQualifications &&
           result.data.offerQualifications.length > 0
@@ -313,18 +268,17 @@ export function BillingSection() {
           }
         }
 
+        // Open print modal
         openModal(result.data);
 
+        // Prepare invoice for messaging
         const invoiceToSend: InvoiceToSend = {
           invoiceNumber:
             (result.data as any).invoiceNumber ??
             (result.data as any)._id ??
             "",
           items: cart.map((item) => ({
-            name:
-              item.type === "oec"
-                ? item.product.productName
-                : item.product.productName,
+            name: item.product.productName,
             price: item.price,
             quantity: item.quantity,
             variantId: item._id,
@@ -336,78 +290,21 @@ export function BillingSection() {
           offerQualifications: result.data.offerQualifications,
         };
 
+        // Prepare customer data for both Telegram and WhatsApp
         const customerData = {
           name: (customer as any)?.name ?? "",
           phone: (customer as any)?.phone ?? "",
+          telegramChatId: (customer as any)?.telegramChatId ?? null,
+          whatsappNumber: (customer as any)?.phone ?? null, // Use phone as WhatsApp number
         };
 
-        let chatId = (customer as any)?.telegramChatId;
+        // Send invoice via both Telegram AND WhatsApp simultaneously
+        await Promise.all([
+          sendPdfToTelegram(invoiceToSend, customerData),
+          sendPdfToWhatsApp(invoiceToSend, customerData),
+        ]);
 
-        if (!chatId) {
-          console.log("⚡ Customer not registered, auto-registering...");
-
-          const storeChatId = "8559870798";
-
-          try {
-            const autoRegisterResponse = await fetch(
-              "/api/customer/auto-register",
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  customerId: (customer as any)._id,
-                  chatId: storeChatId,
-                }),
-              }
-            );
-
-            const autoRegisterResult = await autoRegisterResponse.json();
-
-            if (autoRegisterResult.success) {
-              console.log("✅ Customer auto-registered successfully");
-              chatId = storeChatId;
-            } else {
-              console.warn(
-                "⚠️ Auto-registration failed, using store chat anyway"
-              );
-              chatId = storeChatId;
-            }
-          } catch (error) {
-            console.error("❌ Auto-registration error:", error);
-            chatId = storeChatId;
-          }
-        } else {
-          console.log("✅ Customer already registered with chat ID:", chatId);
-        }
-
-        console.log("🔍 DEBUG - Customer Data:");
-        console.log("   Customer Object:", customer);
-        console.log("   Customer Name:", customerData.name);
-        console.log("   Customer Phone:", customerData.phone);
-        console.log("   Telegram Chat ID:", chatId);
-        console.log("   Chat ID Type:", typeof chatId);
-        console.log("   Is Chat ID null?:", chatId === null);
-        console.log("   Is Chat ID undefined?:", chatId === undefined);
-
-        const telegramResult = await sendPdfToTelegram(
-          invoiceToSend,
-          customerData,
-          chatId
-        );
-
-        if (telegramResult.success) {
-          if (telegramResult.hasPrizes && telegramResult.prizeCount > 0) {
-            toast.success(
-              `✅ Invoice sent to Telegram!\n🎉 Customer won ${telegramResult.prizeCount} prize(s)!`,
-              { duration: 5000 }
-            );
-          } else {
-            toast.success("✅ Invoice sent to Telegram!");
-          }
-        } else {
-          toast.error("⚠️ Failed to send invoice via Telegram");
-        }
-
+        // Update stocks
         const stockUpdatePayload = cart
           .filter((item) => item.type === "variant")
           .map((item) => ({
@@ -417,9 +314,11 @@ export function BillingSection() {
 
         await updateStocksAfterSale(stockUpdatePayload);
 
+        // Refresh products
         const { fetchProducts } = usePosStore.getState();
         await fetchProducts();
 
+        // Clear form
         handleClear();
       } else {
         toast.error(result.message || "Failed to save invoice.");

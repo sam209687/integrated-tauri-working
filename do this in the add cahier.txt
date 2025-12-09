@@ -1,8 +1,10 @@
-1. In the BillingSection page we have already configured the telegram to send the invoice to concern customer via his mobile / phone number
-but the telegram is sending the all the message to the pre config TELEGRAM_CHAT_ID which is in .env fileld
-so this messaging system has to implemented 
-
-2. There is already created edit page of offers page only need to append the icon in the OfferList page to continue the editing the offers
-
-
-⚠️ Joseph S hasn't registered for Telegram notifications. Ask customer to message our bot to receive future invoices automatically.
+curl -X POST \
+  https://graph.facebook.com/v20.0/WHATSAPP_PHONE_ID/messages \
+  -H "Authorization: Bearer WHATSAPP_API" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messaging_product": "whatsapp",
+    "to": "9025288442",
+    "type": "text",
+    "text": { "body": "Hello from Cloud API!" }
+  }'
