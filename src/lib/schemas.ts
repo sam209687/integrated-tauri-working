@@ -59,28 +59,28 @@ export const taxSchema = z.object({
 
 // Store-Settings
 export const StoreSchema = z.object({
-  storeName: z.string().min(1, "Store name is required."),
-  address: z.string().min(1, "Address is required."),
-  city: z.string().min(1, "City is required."),
-  pincode: z.string().regex(/^\d{6}$/, "Pincode must be exactly 6 digits."),
-  state: z.string().min(1, "State is required."),
-  contactNumber: z.string().regex(/^\d{10}$/, "Contact number must be 10 digits."),
-  email: z.string().email("Invalid email address."),
-  fssai: z.string().optional(),
-  pan: z.string().optional(),
-  gst: z.string().optional(),
-  mediaUrl: z.string().url({ message: "Please enter a valid URL." }).optional().or(z.literal("")),
-  logo: z
-    .any()
-    .optional()
-    .refine((file) => !file || file.size <= MAX_FILE_SIZE, `Max image size is 5MB.`)
-    .refine(
-      (file) => !file || ACCEPTED_IMAGE_TYPES.includes(file.type),
-      "Only .jpg, .jpeg, .png and .webp formats are supported."
-    ),
+  storeName: z.string().min(1, "Store name is required"),
+  address: z.string().min(1, "Address is required"),
+  city: z.string().min(1, "City is required"),
+  pincode: z.string().min(1, "Pincode is required"),
+  state: z.string().min(1, "State is required"),
+  contactNumber: z.string().min(1, "Contact number is required"),
+  email: z.string().email("Invalid email address"),
+  
+  // Optional fields
+  fssai: z.string().optional().nullable(),
+  pan: z.string().optional().nullable(),
+  gst: z.string().optional().nullable(),
+  
+  // Social Media & Web URLs (all optional)
+  facebookUrl: z.union([z.string().url("Invalid Facebook URL"), z.literal("")]).optional().nullable(),
+  instagramUrl: z.union([z.string().url("Invalid Instagram URL"), z.literal("")]).optional().nullable(),
+  youtubeUrl: z.union([z.string().url("Invalid YouTube URL"), z.literal("")]).optional().nullable(),
+  twitterUrl: z.union([z.string().url("Invalid Twitter URL"), z.literal("")]).optional().nullable(),
+  googleMapsUrl: z.union([z.string().url("Invalid Google Maps URL"), z.literal("")]).optional().nullable(),
+  websiteUrl: z.union([z.string().url("Invalid Website URL"), z.literal("")]).optional().nullable(),
+  
   status: z.enum(["ACTIVE", "INACTIVE"]).optional(),
-  qrCode: z.string().optional(),
-  mediaQRCode: z.string().optional(),
 });
 
 // currency schema

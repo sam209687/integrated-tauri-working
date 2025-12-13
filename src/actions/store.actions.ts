@@ -1,228 +1,306 @@
 // src/actions/store.actions.ts
-
 "use server";
 
-import { revalidatePath } from 'next/cache';
-import { connectToDatabase } from '@/lib/db';
-import Store from '@/lib/models/store';
-import { writeFile, rm } from 'fs/promises';
-import * as fs from 'fs'; // 💡 FIX 1: Use ES Module import for synchronous fs methods
-import { join } from 'path';
-import QRCode from 'qrcode';
-import { StoreSchema } from '@/lib/schemas';
+import { writeFile, mkdir, unlink } from "fs/promises";
+import { join } from "path";
+import { existsSync } from "fs";
+import Store from "@/lib/models/store";
+import { StoreSchema } from "@/lib/schemas";
+import { connectToDatabase } from "@/lib/db";
 
-// This is a shared helper. If you haven't already, move this to a file like `src/lib/uploadHelper.ts`
-const uploadFile = async (file: File | null, prefix: string): Promise<string | undefined> => {
-  if (!file || file.size === 0) return undefined;
-
+// Helper function to save file to specific folder
+async function saveFile(file: File, folder: string, fileName: string): Promise<string> {
   const bytes = await file.arrayBuffer();
   const buffer = Buffer.from(bytes);
-
-  const filename = `${Date.now()}-${prefix}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '')}`;
-  const uploadsDir = join(process.cwd(), 'public/uploads');
-  const path = join(uploadsDir, filename);
-
-  // ❌ FIX 1: Replaced require('fs')
-  if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true });
-  }
-
-  await writeFile(path, buffer);
-  return `/uploads/${filename}`;
-};
-
-// This is a shared helper. If you haven't already, move this to a file like `src/lib/qrHelper.ts`
-const generateAndSaveQRCode = async (data: string, prefix: string): Promise<string | undefined> => {
-  if (!data) return undefined;
   
-  const filename = `${Date.now()}-${prefix}-qrcode.png`;
-  const uploadsDir = join(process.cwd(), 'public/uploads');
-  const path = join(uploadsDir, filename);
-
-  // ❌ FIX 2: Replaced require('fs')
-  if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
+  // Create the directory structure if it doesn't exist
+  const dirPath = join(process.cwd(), "public", "media", "QR", folder);
+  
+  if (!existsSync(dirPath)) {
+    await mkdir(dirPath, { recursive: true });
   }
   
-  await QRCode.toFile(path, data);
-  return `/uploads/${filename}`;
-};
+  const filePath = join(dirPath, fileName);
+  await writeFile(filePath, buffer);
+  
+  // Return the public URL path
+  return `/media/QR/${folder}/${fileName}`;
+}
 
-// CREATE a new store setting
+// Helper function to delete old file
+async function deleteFile(filePath: string) {
+  if (filePath && filePath.startsWith("/media/")) {
+    const fullPath = join(process.cwd(), "public", filePath);
+    if (existsSync(fullPath)) {
+      await unlink(fullPath);
+    }
+  }
+}
+
 export async function createStore(formData: FormData) {
   try {
     await connectToDatabase();
+
+    const data = Object.fromEntries(formData.entries());
     
-    const dataToValidate = {
-      storeName: formData.get('storeName'),
-      address: formData.get('address'),
-      city: formData.get('city'),
-      pincode: formData.get('pincode'),
-      state: formData.get('state'),
-      contactNumber: formData.get('contactNumber'),
-      email: formData.get('email'),
-      fssai: formData.get('fssai'),
-      pan: formData.get('pan'),
-      gst: formData.get('gst'),
-      mediaUrl: formData.get('mediaUrl'),
-    };
-    
-    const validation = StoreSchema.safeParse(dataToValidate);
-
-    if (!validation.success) {
-      return { success: false, message: 'Invalid form data.', errors: validation.error.flatten().fieldErrors };
-    }
-
-    const logoFile = formData.get('logo') as File | null;
-    const qrCodeFile = formData.get('qrCode') as File | null;
-
-    const logoPath = await uploadFile(logoFile, 'logo');
-    const qrCodePath = await uploadFile(qrCodeFile, 'details-qr');
-    const mediaQRCodePath = await generateAndSaveQRCode(validation.data.mediaUrl || '', 'media-qr');
-
-    const newStore = new Store({
-      ...validation.data,
-      logo: logoPath,
-      qrCode: qrCodePath,
-      mediaQRCode: mediaQRCodePath,
-      status: 'INACTIVE',
+    // Validate form data
+    const validatedData = StoreSchema.parse({
+      storeName: data.storeName,
+      address: data.address,
+      city: data.city,
+      pincode: data.pincode,
+      state: data.state,
+      contactNumber: data.contactNumber,
+      email: data.email,
+      fssai: data.fssai || undefined,
+      pan: data.pan || undefined,
+      gst: data.gst || undefined,
+      facebookUrl: data.facebookUrl || undefined,
+      instagramUrl: data.instagramUrl || undefined,
+      youtubeUrl: data.youtubeUrl || undefined,
+      twitterUrl: data.twitterUrl || undefined,
+      googleMapsUrl: data.googleMapsUrl || undefined,
+      websiteUrl: data.websiteUrl || undefined,
+      status: data.status || 'INACTIVE',
     });
 
-    const storeCount = await Store.countDocuments();
-    if (storeCount === 0) {
-      newStore.status = 'ACTIVE';
+    const storeData: any = { ...validatedData };
+
+    // Handle logo upload
+    const logo = formData.get("logo") as File | null;
+    if (logo) {
+      const logoFileName = `logo-${Date.now()}.${logo.name.split('.').pop()}`;
+      storeData.logo = await saveFile(logo, "logos", logoFileName);
     }
 
-    await newStore.save();
-    
-    revalidatePath('/admin/store-settings');
-    return { success: true, message: 'Store setting created successfully!' };
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-    return { success: false, message: `Failed to create store setting: ${errorMessage}` };
-  }
-}
+    // Handle store details QR code
+    const qrCode = formData.get("qrCode") as File | null;
+    if (qrCode) {
+      const qrFileName = `store-details-${Date.now()}.png`;
+      storeData.qrCode = await saveFile(qrCode, "store", qrFileName);
+    }
 
-// UPDATE an existing store setting
-export async function updateStore(id: string, formData: FormData) {
-  try {
-    await connectToDatabase();
+    // Handle social media QR codes
+    const socialQRFields = [
+      { field: 'facebookQRCode', folder: 'facebook' },
+      { field: 'instagramQRCode', folder: 'instagram' },
+      { field: 'youtubeQRCode', folder: 'youtube' },
+      { field: 'twitterQRCode', folder: 'twitter' },
+      { field: 'googleMapsQRCode', folder: 'googlemaps' },
+      { field: 'websiteQRCode', folder: 'website' },
+    ];
 
-    const dataToValidate = {
-        storeName: formData.get('storeName'),
-        address: formData.get('address'),
-        city: formData.get('city'),
-        pincode: formData.get('pincode'),
-        state: formData.get('state'),
-        contactNumber: formData.get('contactNumber'),
-        email: formData.get('email'),
-        fssai: formData.get('fssai'),
-        pan: formData.get('pan'),
-        gst: formData.get('gst'),
-        mediaUrl: formData.get('mediaUrl'),
-        status: formData.get('status'),
+    for (const { field, folder } of socialQRFields) {
+      const qrFile = formData.get(field) as File | null;
+      if (qrFile) {
+        const qrFileName = `${folder}-qr-${Date.now()}.png`;
+        storeData[field] = await saveFile(qrFile, folder, qrFileName);
+      }
+    }
+
+    // If status is ACTIVE, deactivate all other stores
+    if (storeData.status === 'ACTIVE') {
+      await Store.updateMany({}, { status: 'INACTIVE' });
+    }
+
+    const newStore = await Store.create(storeData);
+
+    return {
+      success: true,
+      message: "Store created successfully!",
+      data: JSON.parse(JSON.stringify(newStore)),
     };
-
-    const validation = StoreSchema.safeParse(dataToValidate);
-
-    if (!validation.success) {
-      return { success: false, message: 'Invalid form data.', errors: validation.error.flatten().fieldErrors };
-    }
-
-    const store = await Store.findById(id);
-    if (!store) {
-      return { success: false, message: 'Store setting not found.' };
-    }
-
-    const logoFile = formData.get('logo') as File | null;
-    const oldLogoPath = formData.get('oldLogoPath') as string | undefined;
-    let logoPath = oldLogoPath;
-    if (logoFile) {
-        if (oldLogoPath) await rm(join(process.cwd(), 'public', oldLogoPath), { force: true }).catch(err => console.error(err));
-        logoPath = await uploadFile(logoFile, 'logo');
-    }
-
-    const qrCodeFile = formData.get('qrCode') as File | null;
-    const oldQrCodePath = formData.get('oldQrCodePath') as string | undefined;
-    let qrCodePath = oldQrCodePath;
-    if (qrCodeFile) {
-        if (oldQrCodePath) await rm(join(process.cwd(), 'public', oldQrCodePath), { force: true }).catch(err => console.error(err));
-        qrCodePath = await uploadFile(qrCodeFile, 'details-qr');
-    }
-
-    const oldMediaQRCodePath = formData.get('oldMediaQRCodePath') as string | undefined;
-    let mediaQRCodePath = oldMediaQRCodePath;
-    const newMediaUrl = validation.data.mediaUrl;
-    
-    if (newMediaUrl) {
-      if (oldMediaQRCodePath) await rm(join(process.cwd(), 'public', oldMediaQRCodePath), { force: true }).catch(err => console.error(err));
-      mediaQRCodePath = await generateAndSaveQRCode(newMediaUrl, 'media-qr');
-    } else if (oldMediaQRCodePath) {
-      await rm(join(process.cwd(), 'public', oldMediaQRCodePath), { force: true }).catch(err => console.error(err));
-      mediaQRCodePath = undefined;
-    }
-
-    Object.assign(store, { ...validation.data, logo: logoPath, qrCode: qrCodePath, mediaQRCode: mediaQRCodePath });
-    
-    await store.save();
-
-    revalidatePath('/admin/store-settings');
-    revalidatePath(`/admin/store-settings/edit/${id}`);
-    
-    return { success: true, message: 'Store setting updated successfully!' };
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-    return { success: false, message: `Failed to update store setting: ${errorMessage}` };
+  } catch (error: any) {
+    console.error("Error creating store:", error);
+    return {
+      success: false,
+      message: error.message || "Failed to create store",
+    };
   }
 }
 
-// DELETE a store setting
-export async function deleteStore(id: string) {
+export async function updateStore(storeId: string, formData: FormData) {
   try {
     await connectToDatabase();
+
+    const data = Object.fromEntries(formData.entries());
     
-    const deletedStore = await Store.findByIdAndDelete(id);
-    
-    if (!deletedStore) {
-      return { success: false, message: 'Store setting not found.' };
-    }
-    
-    const filesToDelete = [deletedStore.logo, deletedStore.qrCode, deletedStore.mediaQRCode];
-    for (const filePath of filesToDelete) {
-        if (filePath) {
-            await rm(join(process.cwd(), 'public', filePath), { force: true }).catch(err => console.error(err));
-        }
+    // Validate form data
+    const validatedData = StoreSchema.parse({
+      storeName: data.storeName,
+      address: data.address,
+      city: data.city,
+      pincode: data.pincode,
+      state: data.state,
+      contactNumber: data.contactNumber,
+      email: data.email,
+      fssai: data.fssai || undefined,
+      pan: data.pan || undefined,
+      gst: data.gst || undefined,
+      facebookUrl: data.facebookUrl || undefined,
+      instagramUrl: data.instagramUrl || undefined,
+      youtubeUrl: data.youtubeUrl || undefined,
+      twitterUrl: data.twitterUrl || undefined,
+      googleMapsUrl: data.googleMapsUrl || undefined,
+      websiteUrl: data.websiteUrl || undefined,
+      status: data.status || 'INACTIVE',
+    });
+
+    const updateData: any = { ...validatedData };
+
+    // Handle logo upload
+    const logo = formData.get("logo") as File | null;
+    if (logo) {
+      const oldLogoPath = formData.get("oldLogoPath") as string;
+      if (oldLogoPath) await deleteFile(oldLogoPath);
+      
+      const logoFileName = `logo-${Date.now()}.${logo.name.split('.').pop()}`;
+      updateData.logo = await saveFile(logo, "logos", logoFileName);
     }
 
-    revalidatePath('/admin/store-settings');
-    return { success: true, message: 'Store setting deleted successfully!' };
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-    return { success: false, message: `Failed to delete store setting: ${errorMessage}` };
-  }
-}
+    // Handle store details QR code
+    const qrCode = formData.get("qrCode") as File | null;
+    if (qrCode) {
+      const oldQrCodePath = formData.get("oldQrCodePath") as string;
+      if (oldQrCodePath) await deleteFile(oldQrCodePath);
+      
+      const qrFileName = `store-details-${Date.now()}.png`;
+      updateData.qrCode = await saveFile(qrCode, "store", qrFileName);
+    }
 
-// GET all store settings
-export async function getStores() {
-  try {
-    await connectToDatabase();
-    const stores = await Store.find({}).sort({ createdAt: 'desc' });
-    return { success: true, data: JSON.parse(JSON.stringify(stores)) };
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-    return { success: false, message: `Failed to retrieve store settings: ${errorMessage}` };
+    // Handle social media QR codes
+    const socialQRFields = [
+      { field: 'facebookQRCode', folder: 'facebook', oldPathField: 'oldFacebookQRCodePath' },
+      { field: 'instagramQRCode', folder: 'instagram', oldPathField: 'oldInstagramQRCodePath' },
+      { field: 'youtubeQRCode', folder: 'youtube', oldPathField: 'oldYoutubeQRCodePath' },
+      { field: 'twitterQRCode', folder: 'twitter', oldPathField: 'oldTwitterQRCodePath' },
+      { field: 'googleMapsQRCode', folder: 'googlemaps', oldPathField: 'oldGoogleMapsQRCodePath' },
+      { field: 'websiteQRCode', folder: 'website', oldPathField: 'oldWebsiteQRCodePath' },
+    ];
+
+    for (const { field, folder, oldPathField } of socialQRFields) {
+      const qrFile = formData.get(field) as File | null;
+      if (qrFile) {
+        const oldPath = formData.get(oldPathField) as string;
+        if (oldPath) await deleteFile(oldPath);
+        
+        const qrFileName = `${folder}-qr-${Date.now()}.png`;
+        updateData[field] = await saveFile(qrFile, folder, qrFileName);
+      }
+    }
+
+    // If status is ACTIVE, deactivate all other stores
+    if (updateData.status === 'ACTIVE') {
+      await Store.updateMany({ _id: { $ne: storeId } }, { status: 'INACTIVE' });
+    }
+
+    const updatedStore = await Store.findByIdAndUpdate(storeId, updateData, {
+      new: true,
+      runValidators: true,
+    });
+
+    if (!updatedStore) {
+      return {
+        success: false,
+        message: "Store not found",
+      };
+    }
+
+    return {
+      success: true,
+      message: "Store updated successfully!",
+      data: JSON.parse(JSON.stringify(updatedStore)),
+    };
+  } catch (error: any) {
+    console.error("Error updating store:", error);
+    return {
+      success: false,
+      message: error.message || "Failed to update store",
+    };
   }
 }
 
 export async function getActiveStore() {
   try {
     await connectToDatabase();
-    // Find the one store that is marked as ACTIVE
-    const store = await Store.findOne({ status: 'ACTIVE' });
-    return { success: true, data: JSON.parse(JSON.stringify(store)) };
-  } catch (error) {
-    // 💡 FIX 3: Log the error to use the variable and suppress the lint warning.
-    console.error("Failed to retrieve active store:", error);
-    return { success: false, message: 'Failed to retrieve active store.' };
+    const activeStore = await Store.findOne({ status: 'ACTIVE' }).lean();
+    
+    if (!activeStore) {
+      return { success: false, message: "No active store found", data: null };
+    }
+    
+    return {
+      success: true,
+      data: JSON.parse(JSON.stringify(activeStore)),
+    };
+  } catch (error: any) {
+    console.error("Error fetching active store:", error);
+    return {
+      success: false,
+      message: error.message || "Failed to fetch active store",
+      data: null,
+    };
+  }
+}
+
+export async function getAllStores() {
+  try {
+    await connectToDatabase();
+    const stores = await Store.find().sort({ createdAt: -1 }).lean();
+    
+    return {
+      success: true,
+      data: JSON.parse(JSON.stringify(stores)),
+    };
+  } catch (error: any) {
+    console.error("Error fetching stores:", error);
+    return {
+      success: false,
+      message: error.message || "Failed to fetch stores",
+      data: [],
+    };
+  }
+}
+
+// Alias for backwards compatibility
+export const getStores = getAllStores;
+
+export async function deleteStore(storeId: string) {
+  try {
+    await connectToDatabase();
+    
+    const store = await Store.findById(storeId);
+    if (!store) {
+      return { success: false, message: "Store not found" };
+    }
+
+    // Delete all associated files
+    const filesToDelete = [
+      store.logo,
+      store.qrCode,
+      store.facebookQRCode,
+      store.instagramQRCode,
+      store.youtubeQRCode,
+      store.twitterQRCode,
+      store.googleMapsQRCode,
+      store.websiteQRCode,
+    ];
+
+    for (const file of filesToDelete) {
+      if (file) await deleteFile(file);
+    }
+
+    await Store.findByIdAndDelete(storeId);
+
+    return {
+      success: true,
+      message: "Store deleted successfully!",
+    };
+  } catch (error: any) {
+    console.error("Error deleting store:", error);
+    return {
+      success: false,
+      message: error.message || "Failed to delete store",
+    };
   }
 }

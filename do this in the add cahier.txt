@@ -1,10 +1,351 @@
-curl -X POST \
-  https://graph.facebook.com/v20.0/WHATSAPP_PHONE_ID/messages \
-  -H "Authorization: Bearer WHATSAPP_API" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "messaging_product": "whatsapp",
-    "to": "9025288442",
-    "type": "text",
-    "text": { "body": "Hello from Cloud API!" }
-  }'
+// src/components/pos/PrintPreview.tsx
+"use client";
+
+import { useState, useEffect, useMemo } from 'react';
+import { usePrintStore } from '@/store/printStore';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
+import { cn } from '@/lib/utils';
+import Image from 'next/image';
+import QRCode from 'qrcode';
+import { useStoreDetailsStore } from '@/store/storeDetails.store';
+import { Trophy, Gift, Settings } from 'lucide-react';
+import Link from 'next/link';
+
+export function PrintPreview() {
+  const { isModalOpen, invoiceData, closeModal } = usePrintStore();
+  const { activeStore, fetchActiveStore } = useStoreDetailsStore();
+  
+  const [paperSize, setPaperSize] = useState<'80mm' | '58mm'>('80mm');
+  const [invoiceQrCode, setInvoiceQrCode] = useState<string | null>(null);
+
+  // Fetch active store details when the modal opens
+  useEffect(() => {
+    if (isModalOpen) {
+      fetchActiveStore();
+      
+      // Load paper size from localStorage (set in printer settings)
+      const savedPaperSize = localStorage.getItem('paperSize') as '80mm' | '58mm';
+      if (savedPaperSize) {
+        setPaperSize(savedPaperSize);
+      }
+    }
+  }, [isModalOpen, fetchActiveStore]);
+
+  // Determine which media QR code to show based on 10-day rotation
+  const currentMediaQrCode = useMemo(() => {
+    if (!activeStore) {
+      console.log('No active store');
+      return null;
+    }
+
+    console.log('Active Store Data:', {
+      facebookQRCode: activeStore.facebookQRCode,
+      instagramQRCode: activeStore.instagramQRCode,
+      youtubeQRCode: activeStore.youtubeQRCode,
+      twitterQRCode: activeStore.twitterQRCode,
+      googleMapsQRCode: activeStore.googleMapsQRCode,
+      websiteQRCode: activeStore.websiteQRCode,
+    });
+
+    // Collect all available media QR codes
+    const qrCodes = [
+      activeStore.facebookQRCode,
+      activeStore.instagramQRCode,
+      activeStore.youtubeQRCode,
+      activeStore.twitterQRCode,
+      activeStore.googleMapsQRCode,
+      activeStore.websiteQRCode,
+    ].filter((qr): qr is string => Boolean(qr)); // Remove null/undefined values with type guard
+
+    console.log('Available QR Codes:', qrCodes);
+
+    if (qrCodes.length === 0) {
+      console.log('No QR codes available');
+      return null;
+    }
+    
+    if (qrCodes.length === 1) {
+      console.log('Only one QR code, returning:', qrCodes[0]);
+      return qrCodes[0];
+    }
+
+    // Calculate which QR code to show based on 10-day rotation
+    const daysSinceEpoch = Math.floor(Date.now() / (1000 * 60 * 60 * 24));
+    const cyclePosition = Math.floor(daysSinceEpoch / 10); // Changes every 10 days
+    const qrIndex = cyclePosition % qrCodes.length;
+
+    console.log('Rotation details:', {
+      daysSinceEpoch,
+      cyclePosition,
+      qrIndex,
+      selectedQr: qrCodes[qrIndex]
+    });
+
+    return qrCodes[qrIndex];
+  }, [activeStore]);
+
+  // Generate the invoice QR code when invoiceData is available
+  useEffect(() => {
+    if (invoiceData) {
+      const generateInvoiceQR = async () => {
+        const qrText = `Invoice: ${invoiceData.invoiceNumber}, Total: ${invoiceData.totalPayable.toFixed(2)}, Date: ${new Date(invoiceData.createdAt).toLocaleDateString()}`;
+        const url = await QRCode.toDataURL(qrText);
+        setInvoiceQrCode(url);
+      };
+      generateInvoiceQR();
+    }
+  }, [invoiceData]);
+
+  // Auto-print if enabled
+  useEffect(() => {
+    if (isModalOpen && invoiceData) {
+      const autoPrint = localStorage.getItem('autoPrint') === 'true';
+      if (autoPrint) {
+        // Delay to allow rendering
+        setTimeout(() => {
+          handlePrint();
+        }, 500);
+      }
+    }
+  }, [isModalOpen, invoiceData]);
+
+  // Debug log for media QR code
+  useEffect(() => {
+    console.log('Current Media QR Code:', currentMediaQrCode);
+  }, [currentMediaQrCode]);
+
+  if (!invoiceData || !activeStore) return null;
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const isGstEnabled = invoiceData.gstAmount > 0;
+  
+  // Check if customer won any prizes
+  const qualifiedOffers = invoiceData.offerQualifications?.filter(q => q.qualified) || [];
+  const hasWonPrizes = qualifiedOffers.length > 0;
+
+  return (
+    <Dialog open={isModalOpen} onOpenChange={closeModal}>
+      <DialogContent className="bg-gray-800 border-gray-700 text-white max-w-4xl">
+        <DialogHeader>
+          <DialogTitle className="sr-only">Invoice Print Preview</DialogTitle>
+        </DialogHeader>
+
+        <div className="flex flex-col md:flex-row gap-4">
+          {/* Print Controls */}
+          <div className="print-hidden w-full md:w-48 flex flex-col gap-4">
+            <h3 className="text-lg font-bold">Print Options</h3>
+            
+            {/* Paper Size Display (Read-only) */}
+            <div>
+              <label className="text-sm font-medium mb-2 block">Paper Size</label>
+              <div className="bg-gray-700 p-3 rounded-lg">
+                <p className="text-center font-semibold">{paperSize}</p>
+                <p className="text-xs text-gray-400 text-center mt-1">
+                  Configure in settings
+                </p>
+              </div>
+            </div>
+            
+            {/* Link to Printer Settings */}
+            <Link href="/admin/printer-settings">
+              <Button variant="outline" className="w-full">
+                <Settings className="mr-2 h-4 w-4" />
+                Printer Settings
+              </Button>
+            </Link>
+            
+            {/* Debug Info */}
+            <div className="bg-gray-700 p-3 rounded-lg text-xs">
+              <p className="font-semibold mb-1">Debug Info:</p>
+              <p>Media QR: {currentMediaQrCode ? '✓ Available' : '✗ None'}</p>
+              <p>Invoice QR: {invoiceQrCode ? '✓ Available' : '✗ None'}</p>
+            </div>
+            
+            {/* Prize notification */}
+            {hasWonPrizes && (
+              <div className="bg-green-600 text-white p-3 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <Trophy className="h-5 w-5" />
+                  <span className="font-bold">Prize Won! 🎉</span>
+                </div>
+                <p className="text-xs">Customer qualified for {qualifiedOffers.length} offer(s)</p>
+              </div>
+            )}
+            
+            <Separator className="bg-gray-700" />
+            <Button onClick={handlePrint} className="bg-green-500 text-black font-bold">
+              Print Invoice
+            </Button>
+          </div>
+
+          {/* Invoice Preview */}
+          <div className="flex-1 bg-white text-black p-2 rounded-md">
+            <div id="invoice-content" className={cn("mx-auto font-mono text-[10px] leading-tight", paperSize === '80mm' ? 'w-[76mm]' : 'w-[54mm]')}>
+              <div className="text-center">
+                {activeStore.logo && (
+                  <Image src={activeStore.logo} alt="Store Logo" width={80} height={80} className="mx-auto" />
+                )}
+                <h2 className="text-lg font-bold">{activeStore.storeName}</h2>
+                <p>{activeStore.address}, {activeStore.city}, {activeStore.pincode}</p>
+                <p>Phone: {activeStore.contactNumber}</p>
+                <p>Email: {activeStore.email}</p>
+                {activeStore.gst && <p>GSTIN: {activeStore.gst}</p>}
+                <Separator className="my-1 bg-gray-400" />
+                <p>Invoice #: {invoiceData.invoiceNumber}</p>
+                <p>Date: {new Date(invoiceData.createdAt).toLocaleString()}</p>
+              </div>
+
+              <Separator className="my-1 bg-gray-400" />
+              
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-black">
+                    <th className="text-left">Item{isGstEnabled && "/HSN"}</th>
+                    <th className="text-center">Qty</th>
+                    <th className="text-right">MRP</th>
+                    <th className="text-right">Price</th>
+                    <th className="text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoiceData.items.map((item, index) => (
+                    <tr key={index} className="border-b border-dashed border-black">
+                      <td className="text-left">
+                        {item.name}
+                        {isGstEnabled && item.hsn && <div className="text-[8px]">({item.hsn})</div>}
+                      </td>
+                      <td className="text-center">{item.quantity}</td>
+                      <td className="text-right">{item.mrp ? item.mrp.toFixed(2) : '-'}</td>
+                      <td className="text-right">{item.price.toFixed(2)}</td>
+                      <td className="text-right">{(item.price * item.quantity).toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              <Separator className="my-1 bg-gray-400 border-dashed" />
+
+              <div className="space-y-1">
+                <div className="flex justify-between">
+                  <span>Subtotal:</span>
+                  <span>{invoiceData.subtotal.toFixed(2)}</span>
+                </div>
+                {invoiceData.discount > 0 && (
+                  <div className="flex justify-between">
+                    <span>Discount:</span>
+                    <span>-{invoiceData.discount.toFixed(2)}</span>
+                  </div>
+                )}
+                {isGstEnabled && (
+                  <div className="flex justify-between">
+                    <span>GST:</span>
+                    <span>+{invoiceData.gstAmount.toFixed(2)}</span>
+                  </div>
+                )}
+                <Separator className="my-1 bg-gray-400" />
+                <div className="flex justify-between font-bold text-base">
+                  <span>TOTAL:</span>
+                  <span>₹{invoiceData.totalPayable.toFixed(2)}</span>
+                </div>
+              </div>
+
+              {/* Prize Section */}
+              {hasWonPrizes && (
+                <>
+                  <Separator className="my-2 bg-gray-400 border-double border-2" />
+                  <div className="border-2 border-black rounded p-2 bg-yellow-50">
+                    <div className="text-center mb-2">
+                      <div className="flex items-center justify-center gap-1">
+                        <Trophy className="h-4 w-4" />
+                        <span className="font-bold text-sm">🎉 CONGRATULATIONS! 🎉</span>
+                      </div>
+                      <p className="text-[9px] font-semibold mt-1">YOU WON {qualifiedOffers.length} PRIZE(S)!</p>
+                    </div>
+                    
+                    {qualifiedOffers.map((offer, idx) => (
+                      <div key={idx} className="mb-2 pb-2 border-b border-dashed border-gray-400 last:border-0">
+                        <div className="flex items-start gap-1">
+                          <Gift className="h-3 w-3 mt-0.5 shrink-0" />
+                          <div className="flex-1">
+                            <p className="font-bold text-[9px]">{offer.offerName}</p>
+                            {offer.prizeName && (
+                              <p className="text-[8px] mt-0.5">Prize: {offer.prizeName}</p>
+                            )}
+                            {offer.prizeRank && (
+                              <p className="text-[8px] font-bold mt-0.5">
+                                🏆 {offer.prizeRank.toUpperCase()} PRIZE!
+                              </p>
+                            )}
+                            {offer.position && (
+                              <p className="text-[7px] mt-0.5">Position: #{offer.position}</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    
+                    <p className="text-[7px] text-center mt-2">
+                      * Contact staff to claim your prize
+                    </p>
+                  </div>
+                </>
+              )}
+
+              <div className="text-center mt-2">
+                <p>Thank you for your business!</p>
+              </div>
+
+              {/* QR Codes Section - Invoice and Media QR side by side */}
+              <div className="mt-2">
+                {(invoiceQrCode || currentMediaQrCode) && (
+                  <div className="flex justify-center items-start gap-3">
+                    {invoiceQrCode && (
+                      <div className="flex flex-col items-center">
+                        <Image 
+                          src={invoiceQrCode} 
+                          alt="Invoice QR Code" 
+                          width={100} 
+                          height={100}
+                          className="border border-gray-300 p-1"
+                        />
+                        <p className="text-[7px] mt-1 font-semibold">Invoice Details</p>
+                      </div>
+                    )}
+                    
+                    {currentMediaQrCode && (
+                      <div className="flex flex-col items-center">
+                        <Image 
+                          src={currentMediaQrCode} 
+                          alt="Social Media QR" 
+                          width={100} 
+                          height={100}
+                          className="border border-gray-300 p-1"
+                        />
+                        <p className="text-[7px] mt-1 font-semibold">Connect With Us</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                {!invoiceQrCode && !currentMediaQrCode && (
+                  <p className="text-center text-[8px] text-gray-500">No QR codes available</p>
+                )}
+              </div>
+
+              <div className="text-center mt-2 text-[8px] space-y-1">
+                <p className="font-bold">Terms & Conditions:</p>
+                <p>1. Goods once sold will not be taken back.</p>
+                <p>2. All disputes subject to local jurisdiction.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}

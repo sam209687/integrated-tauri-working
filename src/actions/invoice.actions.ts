@@ -1,4 +1,4 @@
-// src/actions/invoice.actions.ts (UPDATED)
+// src/actions/invoice.actions.ts (FIXED)
 "use server";
 
 import { revalidatePath } from "next/cache";
@@ -6,9 +6,9 @@ import Invoice, { IInvoice } from "@/lib/models/invoice";
 import { connectToDatabase } from "@/lib/db";
 import Variant, { IVariant } from "@/lib/models/variant";
 import Product, { IProduct } from "@/lib/models/product";
-import { checkInvoiceForOffers } from "./offer-detection.action"; // ✅ NEW IMPORT
-
-// ... (keep all existing interfaces)
+import Customer from "@/lib/models/customer";
+import { getUserModel } from "@/lib/models/user";
+import { checkInvoiceForOffers } from "./offer-detection.action";
 
 interface ActionResponse<T = void> {
   success: boolean;
@@ -127,9 +127,6 @@ async function generateInvoiceNumber(): Promise<string> {
   return `INV-RS-${paddedSequence}-${paddedMonth}-${year}`;
 }
 
-// ============================================================================
-// ✅ UPDATED: Create Invoice with Offer Detection
-// ============================================================================
 export async function createInvoice(
   invoiceData: InvoiceDataPayload
 ): Promise<ActionResponse<IInvoice>> {
@@ -150,7 +147,6 @@ export async function createInvoice(
       return { ...item, variantId: variantIdString };
     });
 
-    // ✅ NEW: Check for offer qualifications BEFORE creating invoice
     const offerCheck = await checkInvoiceForOffers(
       invoiceData.customerId,
       normalizedItems.map(item => ({
@@ -172,14 +168,14 @@ export async function createInvoice(
       gstAmount: invoiceData.gstAmount,
       totalPayable: invoiceData.totalPayable,
       paymentMethod: invoiceData.paymentMethod,
-      offerQualifications: offerCheck.qualifications || [], // ✅ NEW
+      offerQualifications: offerCheck.qualifications || [],
     });
 
     const savedInvoice = await newInvoice.save();
 
     revalidatePath("/admin/invoice");
     revalidatePath("/cashier/invoice");
-    revalidatePath("/admin/pos"); // ✅ NEW: Refresh POS to update offer counts
+    revalidatePath("/admin/pos");
 
     return { 
       success: true, 
@@ -194,17 +190,25 @@ export async function createInvoice(
   }
 }
 
-// ... (keep all other existing functions unchanged)
-
 export async function getInvoices(): Promise<
   ActionResponse<PopulatedInvoice[]>
 > {
   try {
     await connectToDatabase();
 
+    const User = getUserModel();
+
     const invoices = await Invoice.find()
-      .populate<{ customer: ICustomerRef }>("customer", "name phone")
-      .populate<{ billedBy: IBilledByRef }>("billedBy", "name email")
+      .populate<{ customer: ICustomerRef }>({
+        path: "customer",
+        model: Customer,
+        select: "name phone"
+      })
+      .populate<{ billedBy: IBilledByRef }>({
+        path: "billedBy",
+        model: User,
+        select: "name email"
+      })
       .lean<PopulatedInvoice[]>();
 
     return { success: true, data: invoices };
@@ -235,7 +239,7 @@ export async function cancelInvoice(
 
     revalidatePath("/admin/invoice");
     revalidatePath("/cashier/invoice");
-    revalidatePath("/admin/pos"); // ✅ NEW: Refresh POS to update offer counts
+    revalidatePath("/admin/pos");
 
     return { success: true, data: JSON.parse(JSON.stringify(updatedInvoice)) };
   } catch (error) {
