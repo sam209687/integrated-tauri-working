@@ -130,6 +130,136 @@ async function imageToESCPOS(imageData: string, maxWidth: number = 384): Promise
   }
 }
 
+// Convert image to bitmap data (returns raw bitmap data for side-by-side printing)
+async function imageToBitmapData(imageData: string, maxWidth: number = 192): Promise<{
+  width: number;
+  height: number;
+  bytesPerLine: number;
+  bitmap: number[];
+} | null> {
+  try {
+    let imageBuffer: Buffer;
+    
+    if (imageData.startsWith('data:image')) {
+      const base64Data = imageData.replace(/^data:image\/\w+;base64,/, '');
+      imageBuffer = Buffer.from(base64Data, 'base64');
+    } else if (imageData.startsWith('/')) {
+      const filePath = path.join(process.cwd(), 'public', imageData);
+      imageBuffer = await fs.readFile(filePath);
+    } else {
+      imageBuffer = Buffer.from(imageData, 'base64');
+    }
+    
+    const image = sharp(imageBuffer);
+    const metadata = await image.metadata();
+    
+    let processedImage = image;
+    if (metadata.width && metadata.width > maxWidth) {
+      processedImage = image.resize(maxWidth, null, {
+        fit: 'inside',
+        withoutEnlargement: true
+      });
+    }
+    
+    const { data, info } = await processedImage
+      .grayscale()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    
+    const width = info.width;
+    const height = info.height;
+    const threshold = 128;
+    const bytesPerLine = Math.ceil(width / 8);
+    const bitmap: number[] = [];
+    
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < bytesPerLine; x++) {
+        let byte = 0;
+        for (let bit = 0; bit < 8; bit++) {
+          const px = x * 8 + bit;
+          if (px < width) {
+            const index = y * width + px;
+            const pixel = data[index];
+            if (pixel < threshold) {
+              byte |= (1 << (7 - bit));
+            }
+          }
+        }
+        bitmap.push(byte);
+      }
+    }
+    
+    return { width, height, bytesPerLine, bitmap };
+  } catch (error) {
+    console.error('Bitmap conversion error:', error);
+    return null;
+  }
+}
+
+// Combine two bitmaps side by side
+function combineBitmapsSideBySide(
+  left: { width: number; height: number; bytesPerLine: number; bitmap: number[] },
+  right: { width: number; height: number; bytesPerLine: number; bitmap: number[] },
+  spacing: number = 16 // pixels between images
+): string {
+  // Pad heights to match
+  const maxHeight = Math.max(left.height, right.height);
+  
+  // Calculate spacing in bytes
+  const spacingBytes = Math.ceil(spacing / 8);
+  
+  // Calculate combined width
+  const combinedBytesPerLine = left.bytesPerLine + spacingBytes + right.bytesPerLine;
+  const combinedBitmap: number[] = [];
+  
+  for (let y = 0; y < maxHeight; y++) {
+    // Left image
+    if (y < left.height) {
+      const leftStart = y * left.bytesPerLine;
+      for (let x = 0; x < left.bytesPerLine; x++) {
+        combinedBitmap.push(left.bitmap[leftStart + x]);
+      }
+    } else {
+      // Padding if left image is shorter
+      for (let x = 0; x < left.bytesPerLine; x++) {
+        combinedBitmap.push(0);
+      }
+    }
+    
+    // Spacing
+    for (let x = 0; x < spacingBytes; x++) {
+      combinedBitmap.push(0);
+    }
+    
+    // Right image
+    if (y < right.height) {
+      const rightStart = y * right.bytesPerLine;
+      for (let x = 0; x < right.bytesPerLine; x++) {
+        combinedBitmap.push(right.bitmap[rightStart + x]);
+      }
+    } else {
+      // Padding if right image is shorter
+      for (let x = 0; x < right.bytesPerLine; x++) {
+        combinedBitmap.push(0);
+      }
+    }
+  }
+  
+  // Build ESC/POS command
+  let cmd = GS + 'v' + '0';
+  cmd += '\x00';
+  cmd += String.fromCharCode(combinedBytesPerLine & 0xFF);
+  cmd += String.fromCharCode((combinedBytesPerLine >> 8) & 0xFF);
+  cmd += String.fromCharCode(maxHeight & 0xFF);
+  cmd += String.fromCharCode((maxHeight >> 8) & 0xFF);
+  
+  for (const byte of combinedBitmap) {
+    cmd += String.fromCharCode(byte);
+  }
+  
+  return cmd;
+}
+
 // Fetch image from URL and convert to base64
 async function fetchImageAsBase64(url: string): Promise<string | null> {
   try {
@@ -157,6 +287,8 @@ export async function printInvoice(data: PrintPayload) {
     content += CMD_INIT;
     
     // --- LOGO ---
+    // Temporarily disabled - uncomment to enable logo printing
+    /*
     if (storeDetails.logo) {
       try {
         content += CMD_ALIGN_CENTER;
@@ -176,6 +308,7 @@ export async function printInvoice(data: PrintPayload) {
     } else {
       console.log('No logo provided in storeDetails');
     }
+    */
     
     // --- HEADER ---
     content += CMD_ALIGN_CENTER;
@@ -269,28 +402,71 @@ export async function printInvoice(data: PrintPayload) {
       content += drawLine();
     }
     
-    // --- QR CODES ---
+    // --- QR CODES (Side by Side) ---
     content += CMD_ALIGN_CENTER;
     
-    if (qrCodeData) {
+    if (qrCodeData && mediaQrData) {
+      try {
+        console.log('Processing QR codes side by side...');
+        
+        // Convert both QR codes to bitmap data
+        const invoiceQrBitmap = await imageToBitmapData(qrCodeData, 180);
+        const mediaQrBitmap = await imageToBitmapData(mediaQrData, 180);
+        
+        if (invoiceQrBitmap && mediaQrBitmap) {
+          // Combine side by side
+          const combinedCmd = combineBitmapsSideBySide(invoiceQrBitmap, mediaQrBitmap, 16);
+          content += CMD_NEWLINE;
+          content += combinedCmd;
+          
+          // Labels below QR codes
+          content += 'Invoice Details' + '        ' + 'Follow Us!' + CMD_NEWLINE;
+          content += CMD_NEWLINE;
+          console.log('✓ QR codes printed side by side');
+        } else {
+          // Fallback: print separately if combining fails
+          console.log('Failed to combine QR codes, printing separately...');
+          
+          if (invoiceQrBitmap) {
+            const cmd = await imageToESCPOS(qrCodeData, 200);
+            if (cmd) {
+              content += CMD_NEWLINE;
+              content += cmd;
+              content += 'Scan for Invoice Details' + CMD_NEWLINE;
+            }
+          }
+          
+          if (mediaQrBitmap) {
+            const cmd = await imageToESCPOS(mediaQrData, 200);
+            if (cmd) {
+              content += CMD_NEWLINE;
+              content += cmd;
+              content += 'Follow us on social media!' + CMD_NEWLINE;
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Could not print QR codes:', err);
+      }
+    } else if (qrCodeData) {
+      // Only invoice QR
       try {
         console.log('Processing invoice QR code...');
-        const qrCmd = await imageToESCPOS(qrCodeData, 200); // 200px QR code
+        const qrCmd = await imageToESCPOS(qrCodeData, 200);
         if (qrCmd) {
           content += CMD_NEWLINE;
           content += qrCmd;
           content += 'Scan for Invoice Details' + CMD_NEWLINE;
           content += CMD_NEWLINE;
+          console.log('✓ Invoice QR printed');
         }
       } catch (err) {
-        console.warn('Could not print invoice QR:', err);
+        console.error('Could not print invoice QR:', err);
       }
-    }
-    
-    if (mediaQrData) {
+    } else if (mediaQrData) {
+      // Only media QR
       try {
         console.log('Processing media QR code:', mediaQrData);
-        
         const qrCmd = await imageToESCPOS(mediaQrData, 200);
         if (qrCmd) {
           console.log('✓ Media QR converted successfully, size:', qrCmd.length, 'bytes');
@@ -305,7 +481,7 @@ export async function printInvoice(data: PrintPayload) {
         console.error('Could not print media QR:', err);
       }
     } else {
-      console.log('No media QR code provided');
+      console.log('No QR codes to print');
     }
     
     // --- FOOTER ---
