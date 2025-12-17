@@ -25,6 +25,7 @@ export interface IVariant extends Document {
   electricityCharges: number;
   others1: number;
   others2: number;
+  perUnitPrice?: number; // ✅ NEW FIELD
   createdAt: Date;
 }
 
@@ -94,6 +95,7 @@ const VariantSchema: Schema = new Schema(
     electricityCharges: { type: Number, default: 0 },
     others1: { type: Number, default: 0 },
     others2: { type: Number, default: 0 },
+    perUnitPrice: { type: Number },
   },
   {
     timestamps: true,

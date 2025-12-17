@@ -33,6 +33,10 @@ export function LiveCart() {
       <div className="flex-1 overflow-y-auto no-scrollbar space-y-2 pr-1 pb-4">
         {cart.length > 0 ? (
           cart.map((item) => {
+            // Check if this is a retail billing item
+            const isRetailItem = !!(item as any).retailBillingData;
+            const retailData = (item as any).retailBillingData;
+
             let discountPercentage = 0;
             if (item.mrp && item.price && item.mrp > item.price) {
               discountPercentage = ((item.mrp - item.price) / item.mrp) * 100;
@@ -48,7 +52,6 @@ export function LiveCart() {
               <motion.div
                 key={item._id}
                 className={`grid ${gridCols} items-center border border-transparent hover:border-gray-700 py-3 px-3 rounded-md bg-gray-800/30 hover:bg-gray-800/70 transition-colors duration-150`}
-                // 🟢 Removed scale zoom effects — just color fade on hover
                 initial={{ opacity: 0.95 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.2 }}
@@ -64,11 +67,22 @@ export function LiveCart() {
                       {item.product.productCode}
                     </span>
                   )}
+                  {/* Show retail billing quantity */}
+                  {isRetailItem && retailData && (
+                    <span className="text-xs text-yellow-400 font-semibold">
+                      📦 {retailData.displayQuantity}
+                    </span>
+                  )}
                 </div>
 
-                {/* Price */}
+                {/* Price - for retail items, this is already the total */}
                 <div className="text-center font-bold text-gray-100">
                   ₹ {item.price.toFixed(2)}
+                  {isRetailItem && (
+                    <div className="text-[9px] text-gray-400">
+                      (Total)
+                    </div>
+                  )}
                 </div>
 
                 {/* MRP */}
@@ -90,7 +104,7 @@ export function LiveCart() {
                   </div>
                 )}
 
-                {/* Quantity */}
+                {/* Quantity - disabled for retail items */}
                 <div className="flex items-center justify-center space-x-1">
                   <Button
                     size="sm"
@@ -100,7 +114,7 @@ export function LiveCart() {
                       e.stopPropagation();
                       updateCartQuantity(item._id, item.quantity - 1);
                     }}
-                    disabled={item.type === "oec"}
+                    disabled={item.type === "oec" || isRetailItem}
                   >
                     <Minus className="h-3 w-3" />
                   </Button>
@@ -115,7 +129,7 @@ export function LiveCart() {
                       e.stopPropagation();
                       updateCartQuantity(item._id, item.quantity + 1);
                     }}
-                    disabled={item.type === "oec"}
+                    disabled={item.type === "oec" || isRetailItem}
                   >
                     <Plus className="h-3 w-3" />
                   </Button>

@@ -33,6 +33,7 @@ export interface VariantData {
   electricityCharges?: number;
   others1?: number;
   others2?: number;
+  perUnitPrice?: number;
 }
 
 export interface LowStockAlertData {

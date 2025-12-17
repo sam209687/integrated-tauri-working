@@ -105,6 +105,7 @@ const VariantForm: React.FC<VariantFormProps> = ({ initialData }) => {
       electricityCharges: initialData?.electricityCharges || 0, 
       others1: initialData?.others1 || 0, 
       others2: initialData?.others2 || 0, 
+      perUnitPrice: initialData?.perUnitPrice || 0,
     } as VariantFormValues,
   });
 
@@ -267,6 +268,7 @@ const VariantForm: React.FC<VariantFormProps> = ({ initialData }) => {
         electricityCharges: Number(values.electricityCharges),
         others1: Number(values.others1),
         others2: Number(values.others2),
+        perUnitPrice: Number(values.perUnitPrice),
         unitConsumed: Number(values.unitConsumed),
         unitConsumedUnit: values.unitConsumedUnit,
         image: imagePath,
@@ -662,7 +664,42 @@ const VariantForm: React.FC<VariantFormProps> = ({ initialData }) => {
             </FormItem>
           )}
         />
+
+        </div>
+      <Separator className="my-6" />
+      {/* What is the per unit price field  */}
+
+      <h2 className="text-xl font-semibold text-gray-700">Unit Pricing</h2>
+      <span className="text-sm text-gray-500 block mb-4">
+        Specify the price per ml/gram/unit/set if applicable.
+      </span>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <FormField
+          control={form.control}
+          name="perUnitPrice"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Per Unit Price (₹/ml or ₹/gram or ₹/unit or ₹/set)</FormLabel>
+              <FormControl>
+                <Input 
+                  type="number" 
+                  step="0.01" 
+                  placeholder="Enter per unit price"
+                  {...field}
+                  onWheel={(e) => e.currentTarget.blur()}
+                  disabled={isPending}
+                  className={numberInputStyles}
+                />
+              </FormControl>
+              <span className="text-xs text-gray-500 block mt-1">
+                Optional: Price per smallest unit of measurement
+              </span>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
       </div>
+
       <Separator className="my-6" />
 
       {/* Media Section */}

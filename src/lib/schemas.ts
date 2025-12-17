@@ -135,6 +135,7 @@ export const variantSchema = z.object({
   electricityCharges: z.coerce.number().optional(),
   others1: z.coerce.number().optional(),
   others2: z.coerce.number().optional(),
+  perUnitPrice: z.coerce.number().min(0, "Per unit price must be a non-negative number.").optional(), // ✅ NEW FIELD
 });
 
 // oec.schema.ts

@@ -5,6 +5,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
 import sharp from 'sharp';
+import { printDirectToUSB } from '@/lib/directUSBPrint';
 
 interface PrintPayload {
   invoiceData: any;
@@ -26,8 +27,12 @@ const CMD_BOLD_ON = ESC + 'E' + '\x01';
 const CMD_BOLD_OFF = ESC + 'E' + '\x00';
 const CMD_DOUBLE_HEIGHT = GS + '!' + '\x01';
 const CMD_NORMAL_SIZE = GS + '!' + '\x00';
-const CMD_CUT = GS + 'V' + '\x41' + '\x03'; // Full cut with feed
 const CMD_NEWLINE = '\n';
+
+// Paper cut commands - using the exact format you specified
+const CMD_CUT_FULL = GS + 'V' + '\x00'; // Full cut: 0x1D, 0x56, 0x00
+const CMD_CUT_PARTIAL = GS + 'V' + '\x01'; // Partial cut: 0x1D, 0x56, 0x01
+const CMD_CUT_FEED = GS + 'V' + 'A' + '\x03'; // Cut with 3mm feed
 
 function drawLine(width: number = 48) {
   return '-'.repeat(width) + CMD_NEWLINE;
@@ -50,26 +55,20 @@ async function imageToESCPOS(imageData: string, maxWidth: number = 384): Promise
   try {
     let imageBuffer: Buffer;
     
-    // Handle different input types
     if (imageData.startsWith('data:image')) {
-      // Base64 data URL
       const base64Data = imageData.replace(/^data:image\/\w+;base64,/, '');
       imageBuffer = Buffer.from(base64Data, 'base64');
     } else if (imageData.startsWith('/')) {
-      // Local file path - read from filesystem
       const filePath = path.join(process.cwd(), 'public', imageData);
       console.log('Reading image from filesystem:', filePath);
       imageBuffer = await fs.readFile(filePath);
     } else {
-      // Assume it's already base64
       imageBuffer = Buffer.from(imageData, 'base64');
     }
     
-    // Process image with sharp
     const image = sharp(imageBuffer);
     const metadata = await image.metadata();
     
-    // Resize if needed (maintain aspect ratio)
     let processedImage = image;
     if (metadata.width && metadata.width > maxWidth) {
       processedImage = image.resize(maxWidth, null, {
@@ -78,7 +77,6 @@ async function imageToESCPOS(imageData: string, maxWidth: number = 384): Promise
       });
     }
     
-    // Convert to grayscale and get raw pixel data
     const { data, info } = await processedImage
       .grayscale()
       .raw()
@@ -87,7 +85,6 @@ async function imageToESCPOS(imageData: string, maxWidth: number = 384): Promise
     const width = info.width;
     const height = info.height;
     
-    // Convert to 1-bit monochrome
     const threshold = 128;
     const bytesPerLine = Math.ceil(width / 8);
     const bitmap: number[] = [];
@@ -109,16 +106,13 @@ async function imageToESCPOS(imageData: string, maxWidth: number = 384): Promise
       }
     }
     
-    // Build ESC/POS bitmap command
-    // GS v 0 m xL xH yL yH d1...dk
-    let cmd = GS + 'v' + '0'; // GS v 0 (raster bit image)
-    cmd += '\x00'; // m = 0 (normal mode)
-    cmd += String.fromCharCode(bytesPerLine & 0xFF); // xL
-    cmd += String.fromCharCode((bytesPerLine >> 8) & 0xFF); // xH
-    cmd += String.fromCharCode(height & 0xFF); // yL
-    cmd += String.fromCharCode((height >> 8) & 0xFF); // yH
+    let cmd = GS + 'v' + '0';
+    cmd += '\x00';
+    cmd += String.fromCharCode(bytesPerLine & 0xFF);
+    cmd += String.fromCharCode((bytesPerLine >> 8) & 0xFF);
+    cmd += String.fromCharCode(height & 0xFF);
+    cmd += String.fromCharCode((height >> 8) & 0xFF);
     
-    // Add bitmap data
     for (const byte of bitmap) {
       cmd += String.fromCharCode(byte);
     }
@@ -130,7 +124,6 @@ async function imageToESCPOS(imageData: string, maxWidth: number = 384): Promise
   }
 }
 
-// Convert image to bitmap data (returns raw bitmap data for side-by-side printing)
 async function imageToBitmapData(imageData: string, maxWidth: number = 192): Promise<{
   width: number;
   height: number;
@@ -196,56 +189,44 @@ async function imageToBitmapData(imageData: string, maxWidth: number = 192): Pro
   }
 }
 
-// Combine two bitmaps side by side
 function combineBitmapsSideBySide(
   left: { width: number; height: number; bytesPerLine: number; bitmap: number[] },
   right: { width: number; height: number; bytesPerLine: number; bitmap: number[] },
-  spacing: number = 16 // pixels between images
+  spacing: number = 16
 ): string {
-  // Pad heights to match
   const maxHeight = Math.max(left.height, right.height);
-  
-  // Calculate spacing in bytes
   const spacingBytes = Math.ceil(spacing / 8);
-  
-  // Calculate combined width
   const combinedBytesPerLine = left.bytesPerLine + spacingBytes + right.bytesPerLine;
   const combinedBitmap: number[] = [];
   
   for (let y = 0; y < maxHeight; y++) {
-    // Left image
     if (y < left.height) {
       const leftStart = y * left.bytesPerLine;
       for (let x = 0; x < left.bytesPerLine; x++) {
         combinedBitmap.push(left.bitmap[leftStart + x]);
       }
     } else {
-      // Padding if left image is shorter
       for (let x = 0; x < left.bytesPerLine; x++) {
         combinedBitmap.push(0);
       }
     }
     
-    // Spacing
     for (let x = 0; x < spacingBytes; x++) {
       combinedBitmap.push(0);
     }
     
-    // Right image
     if (y < right.height) {
       const rightStart = y * right.bytesPerLine;
       for (let x = 0; x < right.bytesPerLine; x++) {
         combinedBitmap.push(right.bitmap[rightStart + x]);
       }
     } else {
-      // Padding if right image is shorter
       for (let x = 0; x < right.bytesPerLine; x++) {
         combinedBitmap.push(0);
       }
     }
   }
   
-  // Build ESC/POS command
   let cmd = GS + 'v' + '0';
   cmd += '\x00';
   cmd += String.fromCharCode(combinedBytesPerLine & 0xFF);
@@ -260,21 +241,6 @@ function combineBitmapsSideBySide(
   return cmd;
 }
 
-// Fetch image from URL and convert to base64
-async function fetchImageAsBase64(url: string): Promise<string | null> {
-  try {
-    const response = await fetch(url);
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    const base64 = buffer.toString('base64');
-    const mimeType = response.headers.get('content-type') || 'image/png';
-    return `data:${mimeType};base64,${base64}`;
-  } catch (error) {
-    console.error('Failed to fetch image:', error);
-    return null;
-  }
-}
-
 export async function printInvoice(data: PrintPayload) {
   const { invoiceData, storeDetails, qrCodeData, mediaQrData } = data;
 
@@ -285,30 +251,6 @@ export async function printInvoice(data: PrintPayload) {
     
     // Initialize printer
     content += CMD_INIT;
-    
-    // --- LOGO ---
-    // Temporarily disabled - uncomment to enable logo printing
-    /*
-    if (storeDetails.logo) {
-      try {
-        content += CMD_ALIGN_CENTER;
-        console.log('Processing store logo:', storeDetails.logo);
-        
-        const logoCmd = await imageToESCPOS(storeDetails.logo, 250); // 250px width
-        if (logoCmd) {
-          console.log('✓ Logo converted successfully, size:', logoCmd.length, 'bytes');
-          content += logoCmd;
-          content += CMD_NEWLINE;
-        } else {
-          console.warn('Logo conversion returned empty string');
-        }
-      } catch (err) {
-        console.error('Could not print logo:', err);
-      }
-    } else {
-      console.log('No logo provided in storeDetails');
-    }
-    */
     
     // --- HEADER ---
     content += CMD_ALIGN_CENTER;
@@ -345,11 +287,9 @@ export async function printInvoice(data: PrintPayload) {
       const qty = item.quantity.toString();
       const total = (item.price * item.quantity).toFixed(2);
       
-      // Format line: Item name (28 chars) + Qty (6 chars) + Total (10 chars right-aligned)
       const line = itemName.padEnd(28) + qty.padEnd(6) + total.padStart(10);
       content += line + CMD_NEWLINE;
       
-      // Add price per unit on next line if needed
       if (item.quantity > 1) {
         const priceInfo = `  @ Rs.${item.price.toFixed(2)} each`;
         content += priceInfo + CMD_NEWLINE;
@@ -408,23 +348,17 @@ export async function printInvoice(data: PrintPayload) {
     if (qrCodeData && mediaQrData) {
       try {
         console.log('Processing QR codes side by side...');
-        
-        // Convert both QR codes to bitmap data
         const invoiceQrBitmap = await imageToBitmapData(qrCodeData, 180);
         const mediaQrBitmap = await imageToBitmapData(mediaQrData, 180);
         
         if (invoiceQrBitmap && mediaQrBitmap) {
-          // Combine side by side
           const combinedCmd = combineBitmapsSideBySide(invoiceQrBitmap, mediaQrBitmap, 16);
           content += CMD_NEWLINE;
           content += combinedCmd;
-          
-          // Labels below QR codes
           content += 'Invoice Details' + '        ' + 'Follow Us!' + CMD_NEWLINE;
           content += CMD_NEWLINE;
           console.log('✓ QR codes printed side by side');
         } else {
-          // Fallback: print separately if combining fails
           console.log('Failed to combine QR codes, printing separately...');
           
           if (invoiceQrBitmap) {
@@ -449,7 +383,6 @@ export async function printInvoice(data: PrintPayload) {
         console.error('Could not print QR codes:', err);
       }
     } else if (qrCodeData) {
-      // Only invoice QR
       try {
         console.log('Processing invoice QR code...');
         const qrCmd = await imageToESCPOS(qrCodeData, 200);
@@ -464,7 +397,6 @@ export async function printInvoice(data: PrintPayload) {
         console.error('Could not print invoice QR:', err);
       }
     } else if (mediaQrData) {
-      // Only media QR
       try {
         console.log('Processing media QR code:', mediaQrData);
         const qrCmd = await imageToESCPOS(mediaQrData, 200);
@@ -492,25 +424,57 @@ export async function printInvoice(data: PrintPayload) {
     content += CMD_NEWLINE;
     content += CMD_NEWLINE;
     content += CMD_NEWLINE;
-    content += CMD_NEWLINE; // Extra feed before cut
+    content += CMD_NEWLINE;
+    content += CMD_NEWLINE;
+    content += CMD_NEWLINE; // 6 line feeds for proper paper position
     
     // --- CUT PAPER ---
-    // Try multiple cut commands for compatibility
-    content += GS + 'V' + '\x41' + '\x03'; // Partial cut with 3mm feed
-    content += GS + 'V' + '\x00'; // Full cut (fallback)
+    // Since self-test cuts successfully, we know the hardware works
+    // Use the standard ESC/POS cut command
+    console.log('Adding paper cut command...');
+    
+    // Full cut command: GS V 0 (0x1D 0x56 0x00)
+    content += String.fromCharCode(0x1D, 0x56, 0x00);
+    
+    // Alternative: Add partial cut as fallback (some printers prefer this)
+    // content += String.fromCharCode(0x1D, 0x56, 0x01);
+    
+    console.log('Cut command added to buffer');
     
     // Convert to buffer
     const buffer = Buffer.from(content, 'binary');
     console.log(`Print buffer size: ${buffer.length} bytes`);
+    
+    // Verify cut command is in buffer
+    const lastBytes = buffer.slice(-20);
+    console.log('Last 20 bytes:', Array.from(lastBytes).map(b => '0x' + b.toString(16).padStart(2, '0')).join(' '));
+    const hasCutCommand = lastBytes.includes(0x1D) && lastBytes.includes(0x56);
+    console.log('Cut command in buffer:', hasCutCommand ? '✅ YES' : '❌ NO');
     
     // Write to temp file
     const tempFilePath = path.join(os.tmpdir(), `pos-print-${Date.now()}.bin`);
     await fs.writeFile(tempFilePath, buffer);
     console.log(`Temp file created: ${tempFilePath}`);
     
-    // Send to printer
+    // TRY DIRECT USB FIRST (bypasses CUPS filtering)
+    console.log('\n=== Attempting Direct USB Print ===');
+    const directResult = await printDirectToUSB(buffer);
+    
+    if (directResult.success) {
+      console.log('✅ SUCCESS: Printed via Direct USB (CUPS bypassed)');
+      // Cleanup temp file
+      await fs.unlink(tempFilePath).catch((err) => {
+        console.warn('Could not delete temp file:', err);
+      });
+      return { success: true, message: 'Invoice printed successfully via USB' };
+    } else {
+      console.log('⚠️  Direct USB failed:', directResult.message);
+      console.log('=== Falling back to CUPS ===');
+    }
+    
+    // FALLBACK: Use CUPS if direct USB fails
     await new Promise((resolve, reject) => {
-      const cmd = `lp -d RugtekPOS "${tempFilePath}"`;
+      const cmd = `lp -d RugtekPOS -o raw "${tempFilePath}"`;
       console.log(`Executing: ${cmd}`);
       
       exec(cmd, (error, stdout, stderr) => {
@@ -522,6 +486,7 @@ export async function printInvoice(data: PrintPayload) {
         }
         console.log(`Print command output: ${stdout}`);
         if (stderr) console.warn(`Print warnings: ${stderr}`);
+        console.log('✅ Print job sent via CUPS');
         resolve(stdout);
       });
     });
@@ -531,7 +496,7 @@ export async function printInvoice(data: PrintPayload) {
       console.warn('Could not delete temp file:', err);
     });
     
-    console.log('✅ Invoice printed successfully with images');
+    console.log('✅ Invoice printed successfully with paper cut');
     return { success: true, message: 'Invoice printed successfully' };
 
   } catch (error) {
