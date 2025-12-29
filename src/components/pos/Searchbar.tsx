@@ -9,6 +9,7 @@ import { X, AlertCircle, CheckCircle, Scan, ShoppingCart, Calculator } from "luc
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { RetailBilling } from "@/components/pos/RetailBilling";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ProductCatalogDialog } from "./ProductCatalogDialog";
 
 type BillingMode = "daily" | "retail";
 
@@ -26,6 +27,7 @@ export function Searchbar() {
   const scannerInputRef = useRef<HTMLInputElement>(null);
   const [billingMode, setBillingMode] = useState<BillingMode>("daily");
   const [isScannerMode, setIsScannerMode] = useState(false);
+  const [isCatalogOpen, setIsCatalogOpen] = useState(false);
   const [scanStatus, setScanStatus] = useState<{
     type: "success" | "error" | "waiting" | null;
     message: string;
@@ -39,9 +41,16 @@ export function Searchbar() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      // Ctrl + Alt + S for search focus
       if (event.ctrlKey && event.altKey && event.key === "s") {
         event.preventDefault();
         inputRef.current?.focus();
+      }
+      
+      // Ctrl + F1 for product catalog
+      if (event.ctrlKey && event.key === "F1") {
+        event.preventDefault();
+        setIsCatalogOpen(true);
       }
     };
     document.addEventListener("keydown", handleKeyDown);
@@ -180,6 +189,13 @@ export function Searchbar() {
 
   return (
     <div className="flex flex-col h-full w-full bg-gray-900 rounded-lg p-4 relative">
+      {/* Product Catalog Dialog */}
+      <ProductCatalogDialog 
+        products={products}
+        open={isCatalogOpen}
+        onOpenChange={setIsCatalogOpen}
+      />
+
       {/* Billing Mode Toggle */}
       <div className="mb-4">
         <Tabs 
@@ -214,7 +230,7 @@ export function Searchbar() {
             <div className="flex items-center gap-2">
               <Input
                 ref={inputRef}
-                placeholder="Search by product, code, brand, price..."
+                placeholder="Search by product, code, brand, price... (Press Ctrl+F1 for catalog)"
                 className="h-10 bg-gray-800 border-none text-white focus:ring-2 focus:ring-yellow-500 flex-1"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}

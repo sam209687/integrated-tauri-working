@@ -26,7 +26,7 @@ import {
   GiftIcon,
   PrinterCheckIcon,
   ChevronLeft,
-  ChevronRight,
+  FileText,
   LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -195,7 +195,11 @@ export function AdminSidebarContent({
               ) : (
                 <motion.div
                   animate={{ rotate: [0, 360] }}
-                  transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+                  transition={{
+                    duration: 20,
+                    repeat: Infinity,
+                    ease: "linear",
+                  }}
                   className="p-3 rounded-2xl bg-linear-to-br from-purple-500 to-blue-500"
                 >
                   <Settings className="h-8 w-8 text-white" />
@@ -235,14 +239,14 @@ export function AdminSidebarContent({
                           initial={false}
                         />
                       )}
-                      
+
                       <motion.div
                         animate={isActive ? { rotate: [0, 10, -10, 0] } : {}}
                         transition={{ duration: 0.5 }}
                       >
                         <item.icon className="h-5 w-5 shrink-0 relative z-10" />
                       </motion.div>
-                      
+
                       {!isCollapsed && (
                         <span className="flex-1 flex justify-between items-center relative z-10">
                           {item.name}
@@ -269,7 +273,10 @@ export function AdminSidebarContent({
                 return isCollapsed ? (
                   <Tooltip key={item.name}>
                     <TooltipTrigger asChild>{link}</TooltipTrigger>
-                    <TooltipContent side="right" className="dark:bg-gray-900 bg-white dark:border-white/20 border-gray-200 backdrop-blur-xl">
+                    <TooltipContent
+                      side="right"
+                      className="dark:bg-gray-900 bg-white dark:border-white/20 border-gray-200 backdrop-blur-xl"
+                    >
                       {item.name}
                     </TooltipContent>
                   </Tooltip>
@@ -305,23 +312,36 @@ export function AdminSidebarContent({
                   side="right"
                 >
                   <DropdownMenuItem asChild>
-                    <Link href="/admin/products" className="flex items-center cursor-pointer">
+                    <Link
+                      href="/admin/products"
+                      className="flex items-center cursor-pointer"
+                    >
                       <Store className="mr-2 h-4 w-4" /> Products
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link href="/admin/variants" className="flex items-center cursor-pointer">
+                    <Link
+                      href="/admin/variants"
+                      className="flex items-center cursor-pointer"
+                    >
                       <TrendingUpDown className="mr-2 h-4 w-4" /> Create Variant
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link href="/admin/batch" className="flex items-center cursor-pointer">
+                    <Link
+                      href="/admin/batch"
+                      className="flex items-center cursor-pointer"
+                    >
                       <Box className="mr-2 h-4 w-4" /> Generate Batch
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link href="/admin/packingProds" className="flex items-center cursor-pointer">
-                      <PackageCheckIcon className="mr-2 h-4 w-4" /> Packing Materials
+                    <Link
+                      href="/admin/packingProds"
+                      className="flex items-center cursor-pointer"
+                    >
+                      <PackageCheckIcon className="mr-2 h-4 w-4" /> Packing
+                      Materials
                     </Link>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -347,28 +367,53 @@ export function AdminSidebarContent({
                   side="right"
                 >
                   <DropdownMenuItem asChild>
-                    <Link href="/admin/tax" className="flex items-center cursor-pointer">
+                    <Link
+                      href="/admin/tax"
+                      className="flex items-center cursor-pointer"
+                    >
                       <ReceiptIndianRupee className="mr-2 h-4 w-4" /> Tax
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link href="/admin/store-settings" className="flex items-center cursor-pointer">
+                    <Link
+                      href="/admin/store-settings"
+                      className="flex items-center cursor-pointer"
+                    >
                       <Store className="mr-2 h-4 w-4" /> Store Settings
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link href="/admin/currency" className="flex items-center cursor-pointer">
+                    <Link
+                      href="/admin/currency"
+                      className="flex items-center cursor-pointer"
+                    >
                       <UserCircle className="mr-2 h-4 w-4" /> Currency
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link href="/admin/telegram" className="flex items-center cursor-pointer">
+                    <Link
+                      href="/admin/telegram"
+                      className="flex items-center cursor-pointer"
+                    >
                       <QrCodeIcon className="mr-2 h-4 w-4" /> Telegram QR Code
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link href="/admin/printer-settings" className="flex items-center cursor-pointer">
-                      <PrinterCheckIcon className="mr-2 h-4 w-4" /> Printer Settings
+                    <Link
+                      href="/admin/printer-settings"
+                      className="flex items-center cursor-pointer"
+                    >
+                      <PrinterCheckIcon className="mr-2 h-4 w-4" /> Printer
+                      Settings
+                    </Link>
+                  </DropdownMenuItem>
+                  {/* terms and conditions */}
+                  <DropdownMenuItem asChild>
+                    <Link
+                      href="/admin/terms"
+                      className="flex items-center cursor-pointer"
+                    >
+                      <FileText className="mr-2 h-4 w-4" /> Terms & Conditions
                     </Link>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -387,11 +432,8 @@ export function AdminSidebarContent({
             )}
           >
             <ThemeToggle />
-            
-            <motion.div
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
+
+            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
               <Button
                 variant="ghost"
                 className={cn(
@@ -404,14 +446,23 @@ export function AdminSidebarContent({
                 {isPending ? (
                   <motion.div
                     animate={{ rotate: 360 }}
-                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                    transition={{
+                      duration: 1,
+                      repeat: Infinity,
+                      ease: "linear",
+                    }}
                     className={cn("", isCollapsed ? "" : "mr-3")}
                   >
                     <Loader2 className="h-5 w-5" />
                   </motion.div>
                 ) : (
                   <>
-                    <Avatar className={cn("h-8 w-8 ring-2 dark:ring-white/20 ring-gray-300", isCollapsed ? "mr-0" : "mr-3")}>
+                    <Avatar
+                      className={cn(
+                        "h-8 w-8 ring-2 dark:ring-white/20 ring-gray-300",
+                        isCollapsed ? "mr-0" : "mr-3"
+                      )}
+                    >
                       <AvatarImage src={user.avatar} alt={user.name || ""} />
                       <AvatarFallback className="bg-linear-to-br from-purple-500 to-blue-500 text-white">
                         {user.name ? user.name.charAt(0) : "A"}
@@ -419,11 +470,20 @@ export function AdminSidebarContent({
                     </Avatar>
                     {!isCollapsed && (
                       <div className="flex-1 text-left">
-                        <p className="text-sm font-medium dark:text-white text-gray-900">{user.name}</p>
-                        <p className="text-xs dark:text-gray-400 text-gray-500 truncate">{user.email}</p>
+                        <p className="text-sm font-medium dark:text-white text-gray-900">
+                          {user.name}
+                        </p>
+                        <p className="text-xs dark:text-gray-400 text-gray-500 truncate">
+                          {user.email}
+                        </p>
                       </div>
                     )}
-                    <LogOut className={cn("h-4 w-4 dark:text-gray-400 text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity", isCollapsed ? "hidden" : "")} />
+                    <LogOut
+                      className={cn(
+                        "h-4 w-4 dark:text-gray-400 text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity",
+                        isCollapsed ? "hidden" : ""
+                      )}
+                    />
                   </>
                 )}
               </Button>

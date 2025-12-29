@@ -255,3 +255,14 @@ export const offerSchema = z.discriminatedUnion('offerType', [
   regularVisitCountOfferSchema,
   regularPurchaseAmountOfferSchema,
 ]);
+
+// Terms and Conditions Schema
+export const termsSchema = z.object({
+  terms: z
+    .string()
+    .min(10, 'Terms and conditions must be at least 10 characters long.')
+    .max(5000, 'Terms and conditions cannot exceed 5000 characters.'),
+  isActive: z.boolean().default(true),
+});
+
+export type TermsFormData = z.infer<typeof termsSchema>;

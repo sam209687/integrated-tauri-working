@@ -1,4 +1,6 @@
 // src/app/(admin)/admin/manage-cashiers/add/page.tsx
+// import { AddCashierForm } from "@/components/admin/AddCashierForm";
+
 import { AddCashierForm } from "@/components/admin/AddCashierForm";
 
 // ✅ These exports are safe here (this file is purely a server component)

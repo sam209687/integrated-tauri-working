@@ -10,9 +10,10 @@ import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import QRCode from 'qrcode';
 import { useStoreDetailsStore } from '@/store/storeDetails.store';
-import { Trophy, Gift, Settings, Loader2, Printer, CheckCircle, XCircle } from 'lucide-react';
+import { Trophy, Settings, Loader2, Printer, CheckCircle, XCircle } from 'lucide-react';
 import Link from 'next/link';
 import { printInvoice } from '@/actions/printInvoice';
+import { getActiveTerms } from '@/actions/terms.actions';
 
 export function PrintPreview() {
   const { isModalOpen, invoiceData, closeModal } = usePrintStore();
@@ -23,24 +24,32 @@ export function PrintPreview() {
   const [isPrinting, setIsPrinting] = useState(false);
   const [printStatus, setPrintStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [printMessage, setPrintMessage] = useState<string>('');
+  const [activeTerms, setActiveTerms] = useState<string | null>(null);
 
-  // Fetch active store details when the modal opens
+  // Fetch active store details and terms when the modal opens
   useEffect(() => {
     if (isModalOpen) {
       fetchActiveStore();
+      
+      // Fetch active terms
+      const fetchTerms = async () => {
+        const result = await getActiveTerms();
+        if (result.success && result.data) {
+          setActiveTerms(result.data.terms);
+        }
+      };
+      fetchTerms();
       
       const savedPaperSize = localStorage.getItem('paperSize') as '80mm' | '58mm';
       if (savedPaperSize) {
         setPaperSize(savedPaperSize);
       }
       
-      // Reset print status when modal opens
       setPrintStatus('idle');
       setPrintMessage('');
     }
   }, [isModalOpen, fetchActiveStore]);
 
-  // Determine which media QR code to show based on 10-day rotation
   const currentMediaQrCode = useMemo(() => {
     if (!activeStore) return null;
 
@@ -63,7 +72,6 @@ export function PrintPreview() {
     return qrCodes[qrIndex];
   }, [activeStore]);
 
-  // Generate the invoice QR code
   useEffect(() => {
     if (invoiceData) {
       const generateInvoiceQR = async () => {
@@ -75,7 +83,6 @@ export function PrintPreview() {
     }
   }, [invoiceData]);
 
-  // Auto-print logic
   useEffect(() => {
     if (isModalOpen && invoiceData && invoiceQrCode) {
       const autoPrint = localStorage.getItem('autoPrint') === 'true';
@@ -97,7 +104,6 @@ export function PrintPreview() {
     setPrintMessage('');
 
     try {
-      // Wait for QR code generation if not ready
       if (!invoiceQrCode) {
         setPrintMessage('Generating QR code...');
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -120,7 +126,6 @@ export function PrintPreview() {
         setPrintStatus('success');
         setPrintMessage('Invoice printed successfully!');
         
-        // Auto-close after 2 seconds on success
         setTimeout(() => {
           closeModal();
         }, 2000);
@@ -189,7 +194,6 @@ export function PrintPreview() {
             
             <Separator className="bg-gray-700" />
             
-            {/* Print Status Message */}
             {printStatus !== 'idle' && (
               <div className={cn(
                 "p-3 rounded-lg flex items-center gap-2 text-sm",
@@ -210,7 +214,6 @@ export function PrintPreview() {
               </div>
             )}
             
-            {/* Print Button */}
             <Button 
               onClick={handlePrint} 
               disabled={isPrinting}
@@ -283,6 +286,9 @@ export function PrintPreview() {
                 {invoiceData.discount > 0 && (
                   <p>Discount: -Rs. {invoiceData.discount.toFixed(2)}</p>
                 )}
+                {invoiceData.packingChargeDiscount > 0 && (
+                  <p>Packing Charges: -Rs. {invoiceData.packingChargeDiscount.toFixed(2)}</p>
+                )}
                 {invoiceData.gstAmount > 0 && (
                   <p>GST: +Rs. {invoiceData.gstAmount.toFixed(2)}</p>
                 )}
@@ -321,6 +327,19 @@ export function PrintPreview() {
                   </div>
                 )}
               </div>
+              
+              {/* Terms and Conditions */}
+              {activeTerms && (
+                <>
+                  <Separator className="my-2 bg-gray-400" />
+                  <div className="mt-2">
+                    <p className="text-center font-bold text-[9px] mb-1">Terms & Conditions</p>
+                    <p className="text-[8px] text-justify leading-tight">
+                      {activeTerms}
+                    </p>
+                  </div>
+                </>
+              )}
               
               {/* Footer */}
               <div className="mt-4 text-center">
