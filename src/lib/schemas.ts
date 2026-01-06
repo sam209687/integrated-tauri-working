@@ -1,8 +1,8 @@
 // src/lib/schemas.ts
 import { z } from "zod";
-import { 
-    packingMaterialSchema as packingMaterialSchema_internal, 
-    PackingMaterialFormValues as PackingMaterialFormValues_internal 
+import {
+  packingMaterialSchema as packingMaterialSchema_internal,
+  PackingMaterialFormValues as PackingMaterialFormValues_internal,
 } from "./schemas/packingMaterialSchema";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -66,20 +66,38 @@ export const StoreSchema = z.object({
   state: z.string().min(1, "State is required"),
   contactNumber: z.string().min(1, "Contact number is required"),
   email: z.string().email("Invalid email address"),
-  
+
   // Optional fields
   fssai: z.string().optional().nullable(),
   pan: z.string().optional().nullable(),
   gst: z.string().optional().nullable(),
-  
+
   // Social Media & Web URLs (all optional)
-  facebookUrl: z.union([z.string().url("Invalid Facebook URL"), z.literal("")]).optional().nullable(),
-  instagramUrl: z.union([z.string().url("Invalid Instagram URL"), z.literal("")]).optional().nullable(),
-  youtubeUrl: z.union([z.string().url("Invalid YouTube URL"), z.literal("")]).optional().nullable(),
-  twitterUrl: z.union([z.string().url("Invalid Twitter URL"), z.literal("")]).optional().nullable(),
-  googleMapsUrl: z.union([z.string().url("Invalid Google Maps URL"), z.literal("")]).optional().nullable(),
-  websiteUrl: z.union([z.string().url("Invalid Website URL"), z.literal("")]).optional().nullable(),
-  
+  facebookUrl: z
+    .union([z.string().url("Invalid Facebook URL"), z.literal("")])
+    .optional()
+    .nullable(),
+  instagramUrl: z
+    .union([z.string().url("Invalid Instagram URL"), z.literal("")])
+    .optional()
+    .nullable(),
+  youtubeUrl: z
+    .union([z.string().url("Invalid YouTube URL"), z.literal("")])
+    .optional()
+    .nullable(),
+  twitterUrl: z
+    .union([z.string().url("Invalid Twitter URL"), z.literal("")])
+    .optional()
+    .nullable(),
+  googleMapsUrl: z
+    .union([z.string().url("Invalid Google Maps URL"), z.literal("")])
+    .optional()
+    .nullable(),
+  websiteUrl: z
+    .union([z.string().url("Invalid Website URL"), z.literal("")])
+    .optional()
+    .nullable(),
+
   status: z.enum(["ACTIVE", "INACTIVE"]).optional(),
 });
 
@@ -89,7 +107,7 @@ export const currencySchema = z.object({
   currencySymbol: z.string().min(1, "Currency symbol is required."),
 });
 
-// Product Schema
+// Product Schema (RETAIL READY)
 export const productSchema = z.object({
   category: z.string().min(1, "Category is required."),
   brand: z.string().min(1, "Brand is required."),
@@ -97,11 +115,16 @@ export const productSchema = z.object({
   productName: z.string().min(2, "Product name is required."),
   description: z.string().optional(),
   tax: z.string().optional(),
-  purchasePrice: z.coerce.number().min(0, "Purchase price must be a non-negative number."),
-  sellingPrice: z.coerce.number().min(0, "Selling price must be a non-negative number."),
-  totalPrice: z.coerce.number().optional(),
-});
 
+  // ✅ MULTIPLE SELLING TYPES (array instead of single value)
+  sellingTypes: z.array(z.enum(["FIXED", "WEIGHT", "VOLUME", "VALUE"])).min(1, "Select at least one selling type"),
+  
+  // Base unit for loose sales (weight/volume)
+  baseUnit: z.string().min(1, "Base unit is required"),
+  
+  // Allow loose sale for WEIGHT/VOLUME types
+  allowLooseSale: z.boolean(),
+});
 
 // ✅ FIX: Remove the 'variant' field from the schema
 export const batchSchema = z.object({
@@ -115,33 +138,43 @@ export const batchSchema = z.object({
   oilExpelled: z.coerce.number().optional(),
 });
 
-// ✅ CORRECTED: Variants Schema
+// ✅ FINAL Variant Schema (Retail + Wholesale)
 export const variantSchema = z.object({
   product: z.string().min(1, "Product is required."),
-  variantVolume: z.coerce.number().min(0, "Variant volume must be a non-negative number."),
+
+  // Quantity definition
+  variantVolume: z.coerce.number().min(0, "Variant volume must be non-negative."),
   unit: z.string().min(1, "Unit is required."),
-  unitConsumed: z.coerce.number().min(0, "Unit Consumed must be a non-negative number."),
-  unitConsumedUnit: z.string().min(1, "Unit Consumed Unit is required."),
+
+  // ✅ PRICING - All required fields
+  purchasePrice: z.coerce.number().min(0, "Purchase price must be non-negative."),
+  sellingPrice: z.coerce.number().min(0, "Selling price must be non-negative."),
+  mrp: z.coerce.number().min(0, "MRP must be non-negative."),
+  discount: z.coerce.number().min(0).max(100),
+
+  // Inventory
+  stockQuantity: z.coerce.number().min(0),
+  stockAlertQuantity: z.coerce.number().min(0),
+
+  // Optional attributes
   variantColor: z.string().optional(),
-  price: z.coerce.number().min(0, "Price must be a non-negative number."),
-  mrp: z.coerce.number().min(0, "MRP must be a non-negative number."),
-  discount: z.coerce.number().min(0).max(100).optional(),
-  stockQuantity: z.coerce.number().min(0, "Stock quantity must be a non-negative number."),
-  stockAlertQuantity: z.coerce.number().min(0, "Stock alert quantity must be a non-negative number."),
   image: z.any().optional(),
   qrCode: z.any().optional(),
-  packingCharges: z.coerce.number().optional(),
-  laborCharges: z.coerce.number().optional(),
-  electricityCharges: z.coerce.number().optional(),
-  others1: z.coerce.number().optional(),
-  others2: z.coerce.number().optional(),
-  perUnitPrice: z.coerce.number().min(0, "Per unit price must be a non-negative number.").optional(), // ✅ NEW FIELD
+
+  // ✅ Cost breakup - ALL REQUIRED (not optional)
+  packingCharges: z.coerce.number().min(0),
+  laborCharges: z.coerce.number().min(0),
+  electricityCharges: z.coerce.number().min(0),
+  others1: z.coerce.number().min(0),
+  others2: z.coerce.number().min(0),
 });
 
 // oec.schema.ts
 export const oecSchema = z.object({
   product: z.string().min(1, { message: "Product is required." }),
-  oilExpellingCharges: z.coerce.number().min(0, { message: "Oil Expelling Charges must be a positive number." }),
+  oilExpellingCharges: z.coerce
+    .number()
+    .min(0, { message: "Oil Expelling Charges must be a positive number." }),
 });
 
 // customer details schema
@@ -166,12 +199,11 @@ export const messageSchema = z.object({
 export const PackingMaterialSchema = packingMaterialSchema_internal;
 export type PackingMaterialFormValues = PackingMaterialFormValues_internal;
 
-
-// Offers Schemas 
+// Offers Schemas
 
 // Prize Schema (used in festival hit counter)
 export const prizeSchema = z.object({
-  rank: z.enum(['first', 'second', 'third']),
+  rank: z.enum(["first", "second", "third"]),
   prizeName: z.string().min(1, "Prize name is required."),
   image: z
     .instanceof(File)
@@ -193,7 +225,7 @@ const baseOfferFields = {
 // Festival Hit Counter Offer Schema
 export const festivalHitCounterOfferSchema = z.object({
   ...baseOfferFields,
-  offerType: z.literal('festival_hit_counter'),
+  offerType: z.literal("festival_hit_counter"),
   festivalName: z.string().min(1, "Festival name is required."),
   customerLimit: z.coerce.number().min(1, "Customer limit must be at least 1."),
   prizes: z.array(prizeSchema).length(3, "All three prizes are required."),
@@ -202,9 +234,11 @@ export const festivalHitCounterOfferSchema = z.object({
 // Festival Amount-Based Offer Schema
 export const festivalAmountOfferSchema = z.object({
   ...baseOfferFields,
-  offerType: z.literal('festival_amount'),
+  offerType: z.literal("festival_amount"),
   festivalName: z.string().min(1, "Festival name is required."),
-  minimumAmount: z.coerce.number().min(1, "Minimum amount must be greater than 0."),
+  minimumAmount: z.coerce
+    .number()
+    .min(1, "Minimum amount must be greater than 0."),
   prizeName: z.string().min(1, "Prize name is required."),
   prizeImage: z
     .instanceof(File)
@@ -219,7 +253,7 @@ export const festivalAmountOfferSchema = z.object({
 // Regular Visit Count Offer Schema
 export const regularVisitCountOfferSchema = z.object({
   ...baseOfferFields,
-  offerType: z.literal('regular_visit'),
+  offerType: z.literal("regular_visit"),
   visitCount: z.coerce.number().min(1, "Visit count must be at least 1."),
   prizeName: z.string().min(1, "Prize name is required."),
   prizeImage: z
@@ -235,8 +269,10 @@ export const regularVisitCountOfferSchema = z.object({
 // Regular Purchase Amount Offer Schema
 export const regularPurchaseAmountOfferSchema = z.object({
   ...baseOfferFields,
-  offerType: z.literal('regular_amount'),
-  targetAmount: z.coerce.number().min(1, "Target amount must be greater than 0."),
+  offerType: z.literal("regular_amount"),
+  targetAmount: z.coerce
+    .number()
+    .min(1, "Target amount must be greater than 0."),
   prizeName: z.string().min(1, "Prize name is required."),
   prizeImage: z
     .instanceof(File)
@@ -249,7 +285,7 @@ export const regularPurchaseAmountOfferSchema = z.object({
 });
 
 // Union type for all offer schemas - NOW WITH UNIQUE DISCRIMINATOR VALUES
-export const offerSchema = z.discriminatedUnion('offerType', [
+export const offerSchema = z.discriminatedUnion("offerType", [
   festivalHitCounterOfferSchema,
   festivalAmountOfferSchema,
   regularVisitCountOfferSchema,
@@ -260,8 +296,8 @@ export const offerSchema = z.discriminatedUnion('offerType', [
 export const termsSchema = z.object({
   terms: z
     .string()
-    .min(10, 'Terms and conditions must be at least 10 characters long.')
-    .max(5000, 'Terms and conditions cannot exceed 5000 characters.'),
+    .min(10, "Terms and conditions must be at least 10 characters long.")
+    .max(5000, "Terms and conditions cannot exceed 5000 characters."),
   isActive: z.boolean().default(true),
 });
 

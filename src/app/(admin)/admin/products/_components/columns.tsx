@@ -1,92 +1,170 @@
 // src/app/(admin)/admin/products/_components/columns.tsx
-"use client"; 
+
+"use client";
+
 import { ColumnDef } from "@tanstack/react-table";
-import { Button } from "@/components/ui/button";
-import { ArrowUpDown, Edit, Trash2 } from "lucide-react";
 import { IPopulatedProduct } from "@/lib/models/product";
-import { useRouter } from "next/navigation"; // Keep the import for the new component
+import { Button } from "@/components/ui/button";
+import { ArrowUpDown, MoreHorizontal, Pencil, Trash } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useRouter } from "next/navigation";
+import { Badge } from "@/components/ui/badge";
 
-// --- FIX START: Extracted logic into a React Component ---
+// ✅ SAFE: Helper for multiple selling type badges with fallback
+const SellingTypesBadges = ({ types }: { types: string[] | string | undefined }) => {
+  const configs = {
+    FIXED: { icon: "📦", color: "bg-blue-100 text-blue-800 border-blue-200" },
+    WEIGHT: { icon: "⚖️", color: "bg-green-100 text-green-800 border-green-200" },
+    VOLUME: { icon: "🧪", color: "bg-purple-100 text-purple-800 border-purple-200" },
+    VALUE: { icon: "💰", color: "bg-orange-100 text-orange-800 border-orange-200" },
+  };
 
-interface ActionsCellProps {
-    row: { original: IPopulatedProduct };
-    onDelete: (id: string) => Promise<void>;
-    loading: boolean;
-}
-
-// 💡 FIX 1: Create a functional component to use the router hook.
-const ActionsCell: React.FC<ActionsCellProps> = ({ row, onDelete, loading }) => {
-    const router = useRouter(); 
-    
-    return (
-        <div className="flex space-x-2">
-            <Button
-                variant="outline"
-                size="icon"
-                onClick={() => router.push(`/admin/products/edit?id=${row.original._id}`)}
-            >
-                <Edit className="h-4 w-4" />
-            </Button>
-            <Button
-                variant="destructive"
-                size="icon"
-                onClick={() => onDelete(row.original._id)}
-                disabled={loading}
-            >
-                <Trash2 className="h-4 w-4" />
-            </Button>
-        </div>
-    );
-};
-// --- FIX END ---
-
-
-// 💡 FIX 2: Remove useRouter call from the main columns function.
-export const columns = (
-  onDelete: (id: string) => Promise<void>,
-  loading: boolean
-): ColumnDef<IPopulatedProduct>[] => {
-  // const router = useRouter(); // ❌ REMOVED: This was the source of the error
+  // ✅ Handle undefined, single value, or array
+  let typesArray: string[];
   
-  return [
-    {
-      accessorKey: "productName",
-      header: ({ column }) => {
+  if (!types) {
+    typesArray = [];
+  } else if (typeof types === 'string') {
+    // Old data: single string value
+    typesArray = [types];
+  } else if (Array.isArray(types)) {
+    // New data: array
+    typesArray = types;
+  } else {
+    typesArray = [];
+  }
+
+  if (typesArray.length === 0) {
+    return <span className="text-gray-400 text-xs">Not set</span>;
+  }
+
+  return (
+    <div className="flex flex-wrap gap-1">
+      {typesArray.map((type, index) => {
+        const config = configs[type as keyof typeof configs] || configs.FIXED;
         return (
-          <Button
-            variant="ghost"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          >
-            Product Name
-            <ArrowUpDown className="ml-2 h-4 w-4" />
-          </Button>
+          <Badge key={`${type}-${index}`} variant="outline" className={`${config.color} text-xs`}>
+            {config.icon}
+          </Badge>
         );
-      },
-    },
-    {
-      accessorKey: "category.name",
-      header: "Category",
-    },
-    // ✅ REMOVED: The stockQuantity column as it was removed from the schema
-    {
-      accessorKey: "totalPrice",
-      header: "Total Price",
-      cell: ({ row }) => (
-        // ✅ FIX: Added a nullish coalescing operator to prevent TypeError
-        <span>₹{(row.original.totalPrice ?? 0).toFixed(2)}</span>
-      ),
-    },
-    {
-      id: "actions",
-      header: "Actions",
-      // 💡 FIX 3: Use the new ActionsCell component
-      cell: (props) => (
-        <ActionsCell 
-            row={props.row} 
-            onDelete={onDelete} 
-            loading={loading} 
-        />
-      ),
-    },
-  ];
+      })}
+    </div>
+  );
 };
+
+export const columns = (
+  handleDelete: (id: string) => Promise<void>,
+  deleteLoading: boolean
+): ColumnDef<IPopulatedProduct>[] => [
+  {
+    accessorKey: "productCode",
+    header: "Code",
+    cell: ({ row }) => (
+      <span className="font-medium">{row.getValue("productCode") || "N/A"}</span>
+    ),
+  },
+  {
+    accessorKey: "productName",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Product Name
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      );
+    },
+  },
+  {
+    accessorKey: "category",
+    header: "Category",
+    cell: ({ row }) => {
+      const category = row.original.category;
+      return category?.name || "N/A";
+    },
+  },
+  {
+    accessorKey: "brand",
+    header: "Brand",
+    cell: ({ row }) => {
+      const brand = row.original.brand;
+      return brand?.name || "N/A";
+    },
+  },
+  {
+    accessorKey: "sellingTypes",
+    header: "Selling Types",
+    cell: ({ row }) => {
+      // ✅ Safe access with fallback to old field name
+      const types = row.getValue("sellingTypes") || (row.original as any).sellingType;
+      return <SellingTypesBadges types={types} />;
+    },
+  },
+  {
+    accessorKey: "baseUnit",
+    header: "Base Unit",
+    cell: ({ row }) => {
+      const baseUnit = row.original.baseUnit;
+      return baseUnit?.name || "N/A";
+    },
+  },
+  {
+    accessorKey: "allowLooseSale",
+    header: "Loose",
+    cell: ({ row }) => {
+      const allowLooseSale = row.getValue("allowLooseSale");
+      return allowLooseSale ? (
+        <span className="text-green-600 text-sm">✓</span>
+      ) : (
+        <span className="text-gray-400 text-sm">✗</span>
+      );
+    },
+  },
+  {
+    id: "actions",
+    header: "Actions",
+    cell: ({ row }) => {
+      const router = useRouter();
+      const product = row.original;
+
+      return (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="h-8 w-8 p-0">
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() =>
+                router.push(`/admin/products/edit-product?id=${product._id}`)
+              }
+            >
+              <Pencil className="mr-2 h-4 w-4" />
+              Edit
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => handleDelete(product._id)}
+              disabled={deleteLoading}
+              className="text-red-600"
+            >
+              <Trash className="mr-2 h-4 w-4" />
+              {deleteLoading ? "Deleting..." : "Delete"}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      );
+    },
+  },
+];

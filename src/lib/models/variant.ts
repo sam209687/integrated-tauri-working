@@ -1,81 +1,90 @@
 // src/lib/models/variant.ts
-import mongoose, { Schema, Document, Types } from 'mongoose';
-import { IPopulatedProduct } from './product'; // 💡 FIX: Removed unused 'IProduct'
-import { IUnit } from './unit';
-import './product';
-import './unit';
+import mongoose, { Schema, Document, Types } from "mongoose";
+import { IPopulatedProduct } from "./product";
+import { IUnit } from "./unit";
+
+import "./product";
+import "./unit";
 
 export interface IVariant extends Document {
   _id: string;
   product: Types.ObjectId;
+
   variantVolume: number;
   unit: Types.ObjectId;
-  unitConsumed: number; // ✅ NEW: Added to interface
-  unitConsumedUnit: Types.ObjectId; // ✅ NEW: Added to interface
-  variantColor?: string;
-  price: number;
-  mrp: number;
+
+  purchasePrice: number;
+  sellingPrice: number;
+  mrp?: number;
   discount?: number;
+
   stockQuantity: number;
   stockAlertQuantity: number;
+
+  variantColor?: string;
   image?: string;
   qrCode?: string;
+
   packingCharges: number;
   laborCharges: number;
   electricityCharges: number;
   others1: number;
   others2: number;
-  perUnitPrice?: number; // ✅ NEW FIELD
+
   createdAt: Date;
+  updatedAt: Date;
 }
 
-export interface IPopulatedVariant extends Omit<IVariant, 'product' | 'unit' | 'unitConsumedUnit'> {
+// Extended interface for POS operations
+export interface IPopulatedVariant
+  extends Omit<IVariant, "product" | "unit"> {
   product: IPopulatedProduct;
   unit: IUnit;
-  unitConsumedUnit: IUnit;
+  
+  // POS-specific computed properties
+  price: number;          // Alias for sellingPrice (used in POS)
+  perUnitPrice?: number;  // Price per base unit (for retail billing)
+  quantity?: number;      // Quantity in cart (runtime only)
+  type?: string;          // Item type: "variant" | "oec" (runtime only)
+  
+  // Retail billing metadata (runtime only)
+  retailBillingData?: {
+    originalQuantity: number;
+    displayQuantity: string;
+    perUnitPrice: number;
+  };
 }
 
-const VariantSchema: Schema = new Schema(
+const VariantSchema = new Schema<IVariant>(
   {
     product: {
-      type: Types.ObjectId,
-      ref: 'Product',
+      type: Schema.Types.ObjectId,
+      ref: "Product",
       required: true,
+      index: true,
     },
+
     variantVolume: {
       type: Number,
       required: true,
     },
     unit: {
-      type: Types.ObjectId,
-      ref: 'Unit',
+      type: Schema.Types.ObjectId,
+      ref: "Unit",
       required: true,
     },
-    // ✅ FIX: Added the missing schema field definition
-    unitConsumed: {
+
+    purchasePrice: {
       type: Number,
       required: true,
     },
-    unitConsumedUnit: {
-      type: Types.ObjectId,
-      ref: 'Unit',
-      required: true,
-    },
-    // End of FIX
-    variantColor: {
-      type: String,
-    },
-    price: {
+    sellingPrice: {
       type: Number,
       required: true,
     },
-    mrp: {
-      type: Number,
-      required: true,
-    },
-    discount: {
-      type: Number,
-    },
+    mrp: Number,
+    discount: Number,
+
     stockQuantity: {
       type: Number,
       required: true,
@@ -84,24 +93,39 @@ const VariantSchema: Schema = new Schema(
       type: Number,
       required: true,
     },
-    image: {
-      type: String,
-    },
-    qrCode: {
-      type: String,
-    },
+
+    variantColor: String,
+    image: String,
+    qrCode: String,
+
     packingCharges: { type: Number, default: 0 },
     laborCharges: { type: Number, default: 0 },
     electricityCharges: { type: Number, default: 0 },
     others1: { type: Number, default: 0 },
     others2: { type: Number, default: 0 },
-    perUnitPrice: { type: Number },
   },
   {
     timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
   }
 );
 
-const Variant = mongoose.models.Variant || mongoose.model<IVariant>('Variant', VariantSchema);
+// Virtual field: price (alias for sellingPrice)
+VariantSchema.virtual('price').get(function() {
+  return this.sellingPrice;
+});
+
+// Virtual field: perUnitPrice (calculated based on variant volume)
+VariantSchema.virtual('perUnitPrice').get(function() {
+  if (this.variantVolume && this.variantVolume > 0) {
+    return this.sellingPrice / this.variantVolume;
+  }
+  return undefined;
+});
+
+const Variant =
+  mongoose.models.Variant ||
+  mongoose.model<IVariant>("Variant", VariantSchema);
 
 export default Variant;

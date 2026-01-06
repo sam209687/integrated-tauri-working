@@ -5,7 +5,16 @@ import { IPopulatedProduct } from "@/lib/models/product";
 import { ICategory } from "@/lib/models/category";
 import { IBrand } from "@/lib/models/brand";
 import { ITax } from "@/lib/models/tax";
-import { getProducts, getCategories, getBrands, getTaxes } from "@/actions/product.actions";
+import { IUnit } from "@/lib/models/unit";
+
+import {
+  getProducts,
+  getCategories,
+  getBrands,
+  getTaxes,
+  getUnits,
+  getUnitsForSellingType,
+} from "@/actions/product.actions";
 import { getCurrencySymbol } from "@/actions/currency.actions";
 import { toast } from "sonner";
 
@@ -14,20 +23,32 @@ interface ProductStoreState {
   categories: ICategory[];
   brands: IBrand[];
   taxes: ITax[];
+  units: IUnit[];
+  filteredUnits: IUnit[];
   isLoading: boolean;
   currencySymbol: string;
+
   fetchProducts: () => Promise<void>;
   fetchFormData: () => Promise<void>;
+  fetchUnitsForSellingType: (sellingType: "FIXED" | "WEIGHT" | "VOLUME" | "VALUE") => Promise<void>;
+
   addProduct: (product: IPopulatedProduct) => void;
-  updateProduct: (updatedProduct: IPopulatedProduct) => void;
+  updateProduct: (product: IPopulatedProduct) => void;
   removeProduct: (productId: string) => void;
 }
 
-export const useProductStore = create<ProductStoreState>((set) => ({
+// ✅ Helper to convert MongoDB objects to plain JSON
+function toPlainObject<T>(data: T): T {
+  return JSON.parse(JSON.stringify(data));
+}
+
+export const useProductStore = create<ProductStoreState>((set, get) => ({
   products: [],
   categories: [],
   brands: [],
   taxes: [],
+  units: [],
+  filteredUnits: [],
   isLoading: false,
   currencySymbol: "₹",
 
@@ -35,55 +56,76 @@ export const useProductStore = create<ProductStoreState>((set) => ({
     set({ isLoading: true });
     try {
       const result = await getProducts();
-      if (result.success) {
-        set({ products: result.data, isLoading: false });
+      if (result.success && result.data) {
+        // ✅ Convert to plain objects
+        set({ products: toPlainObject(result.data) });
       } else {
-        toast.error(result.message);
-        set({ isLoading: false, products: [] });
+        toast.error(result.message || "Failed to fetch products");
       }
-    } catch (error) {
-      console.error("Failed to fetch products:", error);
-      set({ isLoading: false, products: [] });
+    } catch (err) {
+      console.error(err);
+      toast.error("Error fetching products");
+    } finally {
+      set({ isLoading: false });
     }
   },
 
   fetchFormData: async () => {
     set({ isLoading: true });
     try {
-      const [categoriesResult, brandsResult, taxesResult, currencyResult] = await Promise.all([
+      const [cat, brand, tax, unit, currency] = await Promise.all([
         getCategories(),
         getBrands(),
         getTaxes(),
+        getUnits(),
         getCurrencySymbol(),
       ]);
+
+      // ✅ Convert all to plain objects
       set({
-        categories: categoriesResult.success ? categoriesResult.data : [],
-        brands: brandsResult.success ? brandsResult.data : [],
-        taxes: taxesResult.success ? taxesResult.data : [],
-        currencySymbol: currencyResult.success ? currencyResult.data : "₹",
-        isLoading: false,
+        categories: cat.success ? toPlainObject(cat.data || []) : [],
+        brands: brand.success ? toPlainObject(brand.data || []) : [],
+        taxes: tax.success ? toPlainObject(tax.data || []) : [],
+        units: unit.success ? toPlainObject(unit.data || []) : [],
+        currencySymbol: currency.success ? currency.data || "₹" : "₹",
       });
-    } catch (error) {
-      console.error("Failed to fetch form data:", error);
+    } catch (err) {
+      console.error(err);
+      toast.error("Error fetching form data");
+    } finally {
       set({ isLoading: false });
     }
   },
 
-  addProduct: (product) => {
-    set((state) => ({ products: [...state.products, product] }));
+  fetchUnitsForSellingType: async (sellingType) => {
+    try {
+      const result = await getUnitsForSellingType(sellingType);
+      if (result.success && result.data) {
+        // ✅ Convert to plain objects
+        set({ filteredUnits: toPlainObject(result.data) });
+      } else {
+        const allUnits = get().units;
+        set({ filteredUnits: allUnits });
+      }
+    } catch (err) {
+      console.error(err);
+      const allUnits = get().units;
+      set({ filteredUnits: allUnits });
+    }
   },
 
-  updateProduct: (updatedProduct) => {
+  addProduct: (product) =>
+    set((state) => ({ products: [...state.products, toPlainObject(product)] })),
+    
+  updateProduct: (product) =>
     set((state) => ({
       products: state.products.map((p) =>
-        p._id === updatedProduct._id ? updatedProduct : p
+        p._id === product._id ? toPlainObject(product) : p
       ),
-    }));
-  },
-
-  removeProduct: (productId) => {
+    })),
+    
+  removeProduct: (productId) =>
     set((state) => ({
       products: state.products.filter((p) => p._id !== productId),
-    }));
-  },
+    })),
 }));

@@ -5,10 +5,17 @@ import { useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { usePosStore } from "@/store/posStore";
-import { IPopulatedVariant } from "@/lib/models/variant";
-import { Calculator, Package, IndianRupee } from "lucide-react";
+import { IPosVariant, usePosStore } from "@/store/posStore";
+import { Calculator, Package, IndianRupee, Filter } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+// import type { IPosVariant } from "@/types/pos.types";
 
 type CalculationMode = "quantity" | "price";
 
@@ -21,7 +28,8 @@ export function RetailBilling() {
     addToCart,
   } = usePosStore();
 
-  const [selectedProduct, setSelectedProduct] = useState<IPopulatedVariant | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<IPosVariant | null>(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
   const [calculationMode, setCalculationMode] = useState<CalculationMode>("quantity");
   const [quantityInput, setQuantityInput] = useState("");
   const [priceInput, setPriceInput] = useState("");
@@ -31,11 +39,47 @@ export function RetailBilling() {
     displayQuantity: string;
   } | null>(null);
 
+  // Group products by category
+  const productsByCategory = useMemo(() => {
+    const grouped: Record<string, IPosVariant[]> = {};
+
+    products.forEach((variant) => {
+      if (!variant?.product?.category) return;
+      
+      const categoryId = variant.product.category._id;
+      
+      if (!grouped[categoryId]) {
+        grouped[categoryId] = [];
+      }
+      grouped[categoryId].push(variant);
+    });
+
+    return grouped;
+  }, [products]);
+
+  // Get unique categories
+  const categories = useMemo(() => {
+    const uniqueCategories = new Map();
+    products.forEach((variant) => {
+      if (variant?.product?.category) {
+        uniqueCategories.set(
+          variant.product.category._id,
+          variant.product.category
+        );
+      }
+    });
+    return Array.from(uniqueCategories.values());
+  }, [products]);
+
+  // Get filtered products by category
+  const filteredByCategory = useMemo(() => {
+    if (!selectedCategoryId) return [];
+    return productsByCategory[selectedCategoryId] || [];
+  }, [selectedCategoryId, productsByCategory]);
+
+  // Further filter by search query and exclude products below 1 liter
   const filteredProducts = useMemo(() => {
-    if (!Array.isArray(products)) return [];
-    
-    // Filter products: must have product data AND volume >= 1000ml (1 liter)
-    let filtered = products.filter((p) => {
+    let filtered = filteredByCategory.filter((p) => {
       if (!p || !p.product) return false;
       
       // Check if unit is ml/milliliter and volume is >= 1000 (1 liter or more)
@@ -73,79 +117,93 @@ export function RetailBilling() {
         variant.variantVolume.toString().includes(q)
       );
     });
-  }, [products, searchQuery]);
+  }, [filteredByCategory, searchQuery]);
 
   const formatQuantityDisplay = (quantity: number, unitName: string): string => {
     const lowerUnit = unitName.toLowerCase();
     
-    // Handle liquid measurements (ml to liters)
-    if (lowerUnit.includes("ml") || lowerUnit === "milliliter" || lowerUnit.includes("ltr") || lowerUnit.includes("liter")) {
-      // Round to nearest integer for ml calculations
-      const roundedQuantity = Math.round(quantity);
+    // Handle weight measurements (kg to grams)
+    if (lowerUnit.includes("kg") || lowerUnit === "kilogram") {
+      // Input is in kg, need to show in appropriate format
+      const grams = quantity * 1000; // Convert kg to grams
       
-      if (roundedQuantity >= 1000) {
-        const liters = roundedQuantity / 1000;
+      if (grams >= 1000) {
+        // Show in kg
+        const kg = grams / 1000;
         
-        // Round to 1 decimal place first
-        const roundedLiters = Math.round(liters * 10) / 10;
-        
-        // Check if the decimal part represents a clean ml amount (like .5 = 500ml)
-        const decimalPart = roundedLiters - Math.floor(roundedLiters);
-        
-        // If decimal is exactly .5, show as ml
-        if (decimalPart === 0.5) {
-          const wholeLiters = Math.floor(roundedLiters);
-          if (wholeLiters > 0) {
-            return `${wholeLiters}.5 Liters`; // e.g., 1.5 Liters
-          } else {
-            return `500 ml`;
-          }
+        // Check if it's a clean decimal (like 0.5 kg = 500g)
+        if (kg < 1 && kg > 0) {
+          const gramsValue = Math.round(grams);
+          return `${gramsValue} grams`;
         }
         
-        // For whole numbers
-        if (roundedLiters % 1 === 0) {
-          return `${roundedLiters} ${roundedLiters === 1 ? 'Liter' : 'Liters'}`;
+        // For 1kg or more, show as kg
+        if (kg % 1 === 0) {
+          return `${kg} ${kg === 1 ? 'Kg' : 'Kgs'}`;
         }
         
-        // For other decimals, show with 1 decimal
-        return `${roundedLiters} Liters`;
+        // Show with 1-2 decimal places
+        return `${kg.toFixed(kg < 10 ? 2 : 1)} Kgs`;
+      } else {
+        // Less than 1kg, show in grams
+        return `${Math.round(grams)} grams`;
       }
-      return `${roundedQuantity} ml`;
     }
     
-    // Handle weight measurements (grams to kg)
-    if (lowerUnit.includes("gram") || lowerUnit === "g" || lowerUnit === "gm" || lowerUnit.includes("kg")) {
-      // Round to nearest integer for gram calculations
-      const roundedQuantity = Math.round(quantity);
+    // Handle weight measurements (grams input)
+    if (lowerUnit.includes("gram") || lowerUnit === "g" || lowerUnit === "gm") {
+      const grams = Math.round(quantity);
       
-      if (roundedQuantity >= 1000) {
-        const kg = roundedQuantity / 1000;
+      if (grams >= 1000) {
+        const kg = grams / 1000;
         
-        // Round to 1 decimal place first
-        const roundedKg = Math.round(kg * 10) / 10;
-        
-        // Check if the decimal part represents a clean gram amount
-        const decimalPart = roundedKg - Math.floor(roundedKg);
-        
-        // If decimal is exactly .5, show appropriately
-        if (decimalPart === 0.5) {
-          const wholeKg = Math.floor(roundedKg);
-          if (wholeKg > 0) {
-            return `${wholeKg}.5 Kgs`;
-          } else {
-            return `500 grams`;
-          }
+        if (kg % 1 === 0) {
+          return `${kg} ${kg === 1 ? 'Kg' : 'Kgs'}`;
         }
         
-        // For whole numbers
-        if (roundedKg % 1 === 0) {
-          return `${roundedKg} ${roundedKg === 1 ? 'Kg' : 'Kgs'}`;
-        }
-        
-        // For other decimals
-        return `${roundedKg} Kgs`;
+        return `${kg.toFixed(kg < 10 ? 2 : 1)} Kgs`;
       }
-      return `${roundedQuantity} grams`;
+      return `${grams} grams`;
+    }
+    
+    // Handle liquid measurements (liters to ml)
+    if (lowerUnit.includes("ltr") || lowerUnit.includes("liter") || lowerUnit === "l") {
+      // Input is in liters
+      const ml = quantity * 1000; // Convert liters to ml
+      
+      if (ml >= 1000) {
+        // Show in liters
+        const liters = ml / 1000;
+        
+        if (liters < 1 && liters > 0) {
+          const mlValue = Math.round(ml);
+          return `${mlValue} ml`;
+        }
+        
+        if (liters % 1 === 0) {
+          return `${liters} ${liters === 1 ? 'Liter' : 'Liters'}`;
+        }
+        
+        return `${liters.toFixed(liters < 10 ? 2 : 1)} Liters`;
+      } else {
+        return `${Math.round(ml)} ml`;
+      }
+    }
+    
+    // Handle liquid measurements (ml input)
+    if (lowerUnit.includes("ml") || lowerUnit === "milliliter") {
+      const ml = Math.round(quantity);
+      
+      if (ml >= 1000) {
+        const liters = ml / 1000;
+        
+        if (liters % 1 === 0) {
+          return `${liters} ${liters === 1 ? 'Liter' : 'Liters'}`;
+        }
+        
+        return `${liters.toFixed(liters < 10 ? 2 : 1)} Liters`;
+      }
+      return `${ml} ml`;
     }
     
     // For other units (pieces, qty, sets, etc.)
@@ -153,8 +211,15 @@ export function RetailBilling() {
     return `${roundedQuantity} ${unitName}${roundedQuantity > 1 ? 's' : ''}`;
   };
 
-  const handleProductSelect = (product: IPopulatedVariant) => {
-    if (!product.perUnitPrice) {
+  const handleCategoryChange = (categoryId: string) => {
+    setSelectedCategoryId(categoryId);
+    setSearchQuery(""); // Reset search when category changes
+    setSelectedProduct(null);
+    setCalculatedResult(null);
+  };
+
+  const handleProductSelect = (product: IPosVariant) => {
+    if (!product.perUnitPrice || product.perUnitPrice === 0) {
       alert(`Per unit price is not set for this product variant. Please update the variant settings.`);
       return;
     }
@@ -218,16 +283,11 @@ export function RetailBilling() {
   const handleAddToCart = () => {
     if (!selectedProduct || !calculatedResult) return;
 
-    // Create a custom variant object with calculated values
-    // IMPORTANT: The cart expects price per unit, not total price
-    const customVariant = {
+    // Create a modified variant for cart with retail billing data
+    const customVariant: IPosVariant = {
       ...selectedProduct,
-      // Keep the original per-unit price, cart will multiply by quantity
-      price: calculatedResult.price, // This is the TOTAL price for this custom quantity
-      mrp: selectedProduct.mrp,
-      // For retail billing, we always add quantity as 1 because the price is already the total
+      price: calculatedResult.price,
       quantity: 1,
-      // Store metadata for display purposes
       retailBillingData: {
         originalQuantity: calculatedResult.quantity,
         displayQuantity: calculatedResult.displayQuantity,
@@ -235,7 +295,7 @@ export function RetailBilling() {
       },
     };
 
-    addToCart(customVariant as IPopulatedVariant);
+    addToCart(customVariant);
     
     // Reset form
     setSelectedProduct(null);
@@ -254,29 +314,60 @@ export function RetailBilling() {
 
   return (
     <div className="flex flex-col h-full w-full bg-gray-900 rounded-lg p-4">
-      {/* Search Header */}
+      {/* Category Selection */}
       <div className="mb-4">
-        <Label className="text-gray-300 mb-2 block">Search Product</Label>
-        <Input
-          placeholder="Search by product, code, brand..."
-          className="h-10 bg-gray-800 border-none text-white focus:ring-2 focus:ring-yellow-500"
-          value={searchQuery}
-          onChange={(e) => {
-            setSearchQuery(e.target.value);
-            setSelectedProduct(null);
-            setCalculatedResult(null);
-          }}
-        />
+        <Label className="text-gray-300 mb-2 inline-flex items-center gap-2">
+          <Filter className="h-4 w-4" />
+          Select Category
+        </Label>
+        <Select
+          value={selectedCategoryId}
+          onValueChange={handleCategoryChange}
+        >
+          <SelectTrigger className="h-10 bg-gray-800 border-gray-700 text-white focus:ring-2 focus:ring-yellow-500">
+            <SelectValue placeholder="Choose a category first" />
+          </SelectTrigger>
+          <SelectContent className="bg-gray-800 border-gray-700">
+            {categories.map((category: any) => (
+              <SelectItem 
+                key={category._id} 
+                value={category._id}
+                className="text-white hover:bg-gray-700"
+              >
+                {category.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
+      {/* Search Header (only shows if category is selected) */}
+      {selectedCategoryId && (
+        <div className="mb-4">
+          <Label className="text-gray-300 mb-2 block">Search Product in Category</Label>
+          <Input
+            placeholder="Search by product, code, brand..."
+            className="h-10 bg-gray-800 border-none text-white focus:ring-2 focus:ring-yellow-500"
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setSelectedProduct(null);
+              setCalculatedResult(null);
+            }}
+          />
+        </div>
+      )}
+
       {/* Product Selection Area */}
-      {!selectedProduct && (
+      {!selectedProduct && selectedCategoryId && (
         <div className="flex-1 overflow-y-auto pr-2 mb-4">
           {isLoading ? (
             <div className="text-center text-gray-400 py-8">Loading products...</div>
           ) : filteredProducts.length === 0 ? (
             <div className="text-center text-gray-400 py-8">
-              {searchQuery ? "No products found matching your search." : "Start typing to search products."}
+              {searchQuery 
+                ? "No products found matching your search." 
+                : "No products available in this category."}
             </div>
           ) : (
             <div className="space-y-2">
@@ -297,7 +388,7 @@ export function RetailBilling() {
                           {variant.variantColor && ` • ${variant.variantColor}`}
                         </div>
                         <div className="text-sm text-yellow-500 font-semibold mt-1">
-                          {variant.perUnitPrice 
+                          {variant.perUnitPrice > 0
                             ? `₹${variant.perUnitPrice.toFixed(2)} per ${variant.unit.name}` 
                             : "Per unit price not set"}
                         </div>
@@ -319,6 +410,17 @@ export function RetailBilling() {
         </div>
       )}
 
+      {/* Show message when no category is selected */}
+      {!selectedCategoryId && !selectedProduct && (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center text-gray-400">
+            <Filter className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p className="text-lg">Please select a category first</p>
+            <p className="text-sm mt-2">Choose a category to view products</p>
+          </div>
+        </div>
+      )}
+
       {/* Calculation Interface */}
       {selectedProduct && (
         <div className="space-y-4">
@@ -334,7 +436,7 @@ export function RetailBilling() {
                     Code: {selectedProduct.product.productCode}
                   </div>
                   <div className="text-sm text-yellow-500 font-semibold">
-                    ₹{selectedProduct.perUnitPrice?.toFixed(2)} per {selectedProduct.unit.name}
+                    ₹{selectedProduct.perUnitPrice.toFixed(2)} per {selectedProduct.unit.name}
                   </div>
                 </div>
                 <Button
@@ -460,7 +562,7 @@ export function RetailBilling() {
                   <div className="flex justify-between text-gray-300">
                     <span>Price per {selectedProduct.unit.name}:</span>
                     <span className="font-semibold text-white">
-                      ₹{selectedProduct.perUnitPrice?.toFixed(2)}
+                      ₹{selectedProduct.perUnitPrice.toFixed(2)}
                     </span>
                   </div>
                   <div className="border-t border-gray-700 pt-2 mt-2">

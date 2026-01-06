@@ -1,56 +1,28 @@
 // src/store/posStore.ts
 import { create } from "zustand";
 import { getVariantsForPOS, IPosVariant } from "@/actions/pos/pos.actions";
+import { updateStockQuantitiesInDB } from "@/actions/variant.actions";
 import { v4 as uuidv4 } from "uuid";
 import { toast } from "sonner";
-
-// ✅ NEW: Import the real stock update action
-import { updateStockQuantitiesInDB } from "@/actions/variant.actions"; 
-
-// ❌ REMOVED: The mockUpdateStockQuantitiesInDB constant is now removed.
-
-export interface ICartItem {
-  _id: string;
-  quantity: number;
-  price: number;
-  product: {
-    productName: string;
-    productCode?: string;
-    tax?: {
-      gst: number;
-      hsn: string;
-    };
-  };
-  mrp?: number;
-  discountPercentage?: number;
-  variantVolume?: number;
-  unit?: { _id: string; name: string };
-  variantColor?: string;
-  type: "variant" | "oec";
-}
-
-export interface OecCartItem {
-  productName: string;
-  quantity: number;
-  price: number;
-}
+import { IOecCartItem, IPosCartItem } from "@/types/pos.type";
+// import type { IPosVariant, IPosCartItem, IOecCartItem } from "@/types/pos.types";
 
 interface PosState {
   products: IPosVariant[];
-  cart: ICartItem[];
+  cart: IPosCartItem[];
   searchQuery: string;
   isLoading: boolean;
   isGstEnabled: boolean;
+  
   setSearchQuery: (query: string) => void;
   fetchProducts: () => Promise<void>;
   addToCart: (product: IPosVariant) => void;
-  addOecToCart: (item: OecCartItem) => void;
+  addOecToCart: (item: IOecCartItem) => void;
   updateCartQuantity: (productId: string, quantity: number) => void;
   removeFromCart: (productId: string) => void;
   clearCart: () => void;
   toggleGst: () => void;
-  // ✅ NEW: Dedicated function to update stock in DB after a successful sale.
-  updateStocksAfterSale: (items: { variantId: string; quantity: number }[]) => Promise<void>; 
+  updateStocksAfterSale: (items: { variantId: string; quantity: number }[]) => Promise<void>;
   checkout: () => Promise<void>;
 }
 
@@ -61,10 +33,10 @@ export const usePosStore = create<PosState>((set, get) => ({
   isLoading: false,
   isGstEnabled: false,
 
-  // ✅ Search
+  // Search
   setSearchQuery: (query) => set({ searchQuery: query }),
 
-  // ✅ Fetch product variants
+  // Fetch product variants
   fetchProducts: async () => {
     set({ isLoading: true });
     try {
@@ -83,7 +55,7 @@ export const usePosStore = create<PosState>((set, get) => ({
     }
   },
 
-  // ✅ Add variant to cart with stock validation
+  // Add variant to cart with stock validation
   addToCart: (product) => {
     const existingItem = get().cart.find((item) => item._id === product._id);
     const availableStock = product.stockQuantity ?? 0;
@@ -105,25 +77,38 @@ export const usePosStore = create<PosState>((set, get) => ({
           ...state.cart,
           {
             _id: product._id,
-            product: product.product,
+            product: {
+              productName: product.product.productName,
+              productCode: product.product.productCode,
+              tax: product.product.tax ? {
+                _id: product.product.tax._id,
+                gst: product.product.tax.gst,
+                hsn: product.product.tax.hsn,
+              } : undefined,
+            },
             quantity: 1,
             price: product.price,
             mrp: product.mrp,
             variantVolume: product.variantVolume,
             unit: product.unit,
             variantColor: product.variantColor,
-            type: "variant",
+            type: "variant" as const,
+            retailBillingData: product.retailBillingData,
           },
         ],
       }));
     }
   },
 
-  // ✅ Add custom item
+  // Add OEC item
   addOecToCart: (item) => {
-    const newOecItem: ICartItem = {
+    const newOecItem: IPosCartItem = {
       _id: uuidv4(),
-      product: { productName: item.productName },
+      product: { 
+        productName: item.productName,
+        productCode: undefined,
+        tax: undefined,
+      },
       price: item.price,
       quantity: item.quantity,
       type: "oec",
@@ -131,7 +116,7 @@ export const usePosStore = create<PosState>((set, get) => ({
     set((state) => ({ cart: [...state.cart, newOecItem] }));
   },
 
-  // ✅ Update quantity
+  // Update quantity
   updateCartQuantity: (productId, quantity) => {
     if (quantity <= 0) {
       get().removeFromCart(productId);
@@ -151,26 +136,25 @@ export const usePosStore = create<PosState>((set, get) => ({
     }));
   },
 
-  // ✅ Remove from cart
+  // Remove from cart
   removeFromCart: (productId) => {
     set((state) => ({
       cart: state.cart.filter((item) => item._id !== productId),
     }));
   },
 
-  // ✅ Clear cart
+  // Clear cart
   clearCart: () => set({ cart: [], isGstEnabled: false }),
 
-  // ✅ Toggle GST
+  // Toggle GST
   toggleGst: () => set((state) => ({ isGstEnabled: !state.isGstEnabled })),
 
-  // ✅ UPDATED: Update stocks after sale action now uses the real backend function
+  // Update stocks after sale
   updateStocksAfterSale: async (items) => {
     if (items.length === 0) return;
 
     try {
-      // 💡 Call the actual server action to reduce stock quantity
-      const result = await updateStockQuantitiesInDB(items); 
+      const result = await updateStockQuantitiesInDB(items);
       
       if (!result.success) {
         toast.error(result.message || "Failed to update stocks in the database.");
@@ -183,8 +167,11 @@ export const usePosStore = create<PosState>((set, get) => ({
     }
   },
 
-  // ✅ Checkout (Retaining the signature, but removing the confusing body)
+  // Checkout placeholder
   checkout: async () => {
-    // This function is kept for interface compatibility but is not the primary checkout path.
+    // Kept for interface compatibility
   },
 }));
+
+// Export types for convenience
+export type { IPosVariant, IPosCartItem, IOecCartItem };

@@ -19,14 +19,11 @@ import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { IPopulatedVariant } from "@/lib/models/variant";
 
-// --- FIX START: Extracted logic into a functional React Component ---
-
 interface VariantActionsCellProps {
   original: IPopulatedVariant;
 }
 
 const VariantActionsCell: React.FC<VariantActionsCellProps> = ({ original }) => {
-  // 💡 FIX 1 & 2: Hooks are now correctly called inside a functional component
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const variantId = original._id;
@@ -36,7 +33,7 @@ const VariantActionsCell: React.FC<VariantActionsCellProps> = ({ original }) => 
       const result = await deleteVariant(variantId);
       if (result.success) {
         toast.success(result.message);
-        router.refresh(); // Refresh the data in the table
+        router.refresh();
       } else {
         toast.error(result.message);
       }
@@ -48,8 +45,7 @@ const VariantActionsCell: React.FC<VariantActionsCellProps> = ({ original }) => 
       const result = await generateVariantQRCode(variantId);
       if (result.success) {
         toast.success(result.message);
-        // Assuming QR generation updates the variant, a refresh might be needed
-        // router.refresh(); 
+        router.refresh();
       } else {
         toast.error(result.message);
       }
@@ -93,64 +89,84 @@ const VariantActionsCell: React.FC<VariantActionsCellProps> = ({ original }) => 
   );
 };
 
-// --- FIX END ---
-
-
 export const columns: ColumnDef<IPopulatedVariant>[] = [
   {
-    accessorKey: "product.productName", 
-    // ✅ FIX: The id should match the accessorKey for filtering to work
-    id: "product.productName", 
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Product
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      );
+    accessorKey: "product.productName",
+    id: "product.productName",
+    header: ({ column }) => (
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+      >
+        Product
+        <ArrowUpDown className="ml-2 h-4 w-4" />
+      </Button>
+    ),
+  },
+
+  {
+    id: "category",
+    header: "Category",
+    cell: ({ row }) => {
+      return row.original.product?.category?.name ?? "Uncategorized";
     },
   },
+
   {
     accessorKey: "variantColor",
     header: "Color",
+    cell: ({ row }) => row.getValue("variantColor") || "—",
   },
+
   {
-    accessorKey: "price",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Price
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      );
-    },
+    accessorKey: "sellingPrice",
+    header: ({ column }) => (
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+      >
+        Price
+        <ArrowUpDown className="ml-2 h-4 w-4" />
+      </Button>
+    ),
     cell: ({ row }) => {
-      const price = parseFloat(row.getValue("price"));
-      const formatted = new Intl.NumberFormat("en-US", {
+      // ✅ FIX: Use sellingPrice instead of price
+      const price = row.original.sellingPrice;
+      if (price === undefined || price === null || isNaN(price)) {
+        return "—";
+      }
+      return new Intl.NumberFormat("en-IN", {
         style: "currency",
         currency: "INR",
       }).format(price);
-
-      return formatted;
     },
   },
+
   {
     accessorKey: "variantVolume",
     header: "Volume",
-    cell: ({ row }) => {
-      // The `unit` object should be populated by the server action
-      return `${row.original.variantVolume} ${row.original.unit.name}`;
-    }
+    cell: ({ row }) =>
+      `${row.original.variantVolume} ${row.original.unit.name}`,
   },
+
+  {
+    accessorKey: "stockQuantity",
+    header: "Stock",
+    cell: ({ row }) => {
+      const stock = row.original.stockQuantity;
+      const alert = row.original.stockAlertQuantity;
+      const isLow = stock <= alert;
+      
+      return (
+        <span className={isLow ? "text-red-600 font-semibold" : "text-green-600"}>
+          {stock}
+        </span>
+      );
+    },
+  },
+
   {
     id: "actions",
-    // 💡 FIX 3: Use the new component inside the cell
     cell: ({ row }) => <VariantActionsCell original={row.original} />,
   },
 ];

@@ -1,42 +1,18 @@
+// src/components/pos/ProductCatalogDialog.tsx
 import { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Search, X } from 'lucide-react';
+import { Search, X, Filter } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
-
-// Type definitions matching your database structure
-interface Brand {
-  _id: string;
-  name: string;
-}
-
-interface Category {
-  _id: string;
-  name: string;
-}
-
-interface Unit {
-  _id: string;
-  name: string;
-}
-
-interface Product {
-  _id: string;
-  productCode: string;
-  productName: string;
-  brand: Brand;
-  category: Category;
-}
-
-interface PopulatedVariant {
-  _id: string;
-  product: Product;
-  variantVolume: number;
-  unit: Unit;
-  variantColor?: string;
-  price: number;
-  stockQuantity: number;
-}
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { IPosVariant } from '@/types/pos.type';
+// import type { IPosVariant } from '@/types/pos.types';
 
 interface GroupedProduct {
   categoryName: string;
@@ -51,13 +27,28 @@ interface GroupedProduct {
 }
 
 interface ProductCatalogDialogProps {
-  products: PopulatedVariant[];
+  products: IPosVariant[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
 export function ProductCatalogDialog({ products, open, onOpenChange }: ProductCatalogDialogProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
+
+  // Get unique categories
+  const categories = useMemo(() => {
+    const uniqueCategories = new Map();
+    products.forEach((variant) => {
+      if (variant.product?.category) {
+        uniqueCategories.set(
+          variant.product.category._id,
+          variant.product.category
+        );
+      }
+    });
+    return Array.from(uniqueCategories.values());
+  }, [products]);
 
   // Group products by category
   const groupedProducts = useMemo(() => {
@@ -95,14 +86,25 @@ export function ProductCatalogDialog({ products, open, onOpenChange }: ProductCa
     return grouped;
   }, [products]);
 
-  // Filter grouped products based on search query
+  // Filter grouped products based on search query and category
   const filteredGroupedProducts = useMemo(() => {
-    if (!searchQuery.trim()) return groupedProducts;
+    let filtered = groupedProducts;
+
+    // Filter by category if selected
+    if (selectedCategoryId) {
+      const categoryName = categories.find((c: any) => c._id === selectedCategoryId)?.name;
+      if (categoryName) {
+        filtered = { [categoryName]: groupedProducts[categoryName] || [] };
+      }
+    }
+
+    // Filter by search query
+    if (!searchQuery.trim()) return filtered;
 
     const query = searchQuery.toLowerCase();
-    const filtered: Record<string, GroupedProduct[]> = {};
+    const result: Record<string, GroupedProduct[]> = {};
 
-    Object.entries(groupedProducts).forEach(([category, items]) => {
+    Object.entries(filtered).forEach(([category, items]) => {
       const filteredItems = items.filter(item => 
         item.productName.toLowerCase().includes(query) ||
         item.brandName.toLowerCase().includes(query) ||
@@ -112,17 +114,18 @@ export function ProductCatalogDialog({ products, open, onOpenChange }: ProductCa
       );
 
       if (filteredItems.length > 0) {
-        filtered[category] = filteredItems;
+        result[category] = filteredItems;
       }
     });
 
-    return filtered;
-  }, [groupedProducts, searchQuery]);
+    return result;
+  }, [groupedProducts, searchQuery, selectedCategoryId, categories]);
 
-  // Reset search when dialog closes
+  // Reset search and category when dialog closes
   useEffect(() => {
     if (!open) {
       setSearchQuery('');
+      setSelectedCategoryId('');
     }
   }, [open]);
 
@@ -145,6 +148,44 @@ export function ProductCatalogDialog({ products, open, onOpenChange }: ProductCa
           </p>
         </DialogHeader>
 
+        {/* Category Filter */}
+        <div className="flex items-center gap-2">
+          <Select
+            value={selectedCategoryId || "all"}
+            onValueChange={(value) => setSelectedCategoryId(value === "all" ? "" : value)}
+          >
+            <SelectTrigger className="h-10 bg-gray-800 border-gray-700 text-white focus:ring-2 focus:ring-yellow-500">
+              <SelectValue placeholder="All Categories">
+                {selectedCategoryId 
+                  ? categories.find((c: any) => c._id === selectedCategoryId)?.name 
+                  : "All Categories"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent className="bg-gray-800 border-gray-700">
+              <SelectItem value="all" className="text-white hover:bg-gray-700">
+                All Categories
+              </SelectItem>
+              {categories.map((category: any) => (
+                <SelectItem 
+                  key={category._id} 
+                  value={category._id}
+                  className="text-white hover:bg-gray-700"
+                >
+                  {category.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {selectedCategoryId && (
+            <button
+              onClick={() => setSelectedCategoryId('')}
+              className="p-2 bg-gray-800 rounded hover:bg-gray-700 text-gray-400"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+
         {/* Search Bar */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -165,7 +206,16 @@ export function ProductCatalogDialog({ products, open, onOpenChange }: ProductCa
         </div>
 
         {/* Results Count */}
-        <div className="text-sm text-gray-400">
+        <div className="text-sm text-gray-400 flex items-center gap-2">
+          {selectedCategoryId && (
+            <span className="flex items-center gap-1">
+              <Filter className="h-3 w-3" />
+              <span className="text-yellow-500 font-semibold">
+                {categories.find((c: any) => c._id === selectedCategoryId)?.name}
+              </span>
+              <span>•</span>
+            </span>
+          )}
           Found {totalProducts} product{totalProducts !== 1 ? 's' : ''} in {categoryCount} categor{categoryCount !== 1 ? 'ies' : 'y'}
         </div>
 
@@ -176,7 +226,7 @@ export function ProductCatalogDialog({ products, open, onOpenChange }: ProductCa
               <div className="text-center py-12 text-gray-400">
                 <Search className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p className="text-lg">No products found</p>
-                <p className="text-sm mt-2">Try adjusting your search criteria</p>
+                <p className="text-sm mt-2">Try adjusting your search or category filter</p>
               </div>
             ) : (
               Object.entries(filteredGroupedProducts)

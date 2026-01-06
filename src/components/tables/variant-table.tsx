@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { columns } from '@/app/(admin)/admin/variants/columns';
+import { columns } from "@/app/(admin)/admin/variants/columns";
 import { DataTable } from "../ui/data-table";
 import { Loader2 } from "lucide-react";
 import { useVariantStore } from "@/store/variantStore";
@@ -22,7 +22,9 @@ export function VariantTable() {
   }
 
   return (
-    // ⚠️ CORRECTED: Changed searchKey from "productName" to "product.productName"
-    <DataTable columns={columns} data={variants} searchKey="product.productName" />
+    <DataTable
+      columns={columns}
+      data={variants}
+    />
   );
 }

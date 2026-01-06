@@ -1,73 +1,130 @@
 // src/actions/pos/pos.actions.ts
-
 "use server";
 
 import { connectToDatabase } from "@/lib/db";
 import Variant from "@/lib/models/variant";
-import { IProduct } from "@/lib/models/product";
-import { IUnit } from "@/lib/models/unit";
-import { IPopulatedVariant } from "@/lib/models/variant";
+import type { IPosVariant } from "@/types/pos.type";
+// import type { IPosVariant } from "@/types/pos.types";
 
-// Import models for side-effects to register them
-import "@/lib/models/product";
-import "@/lib/models/brand";
-import "@/lib/models/category";
-import "@/lib/models/unit";
-import "@/lib/models/tax"; // ✅ NEW: Register Tax model
+/* ------------------------------------------------------------------ */
+/* HELPER */
+/* ------------------------------------------------------------------ */
 
-// 💡 FIX: Replace the redundant interface with a type alias.
-export type IPosVariant = IPopulatedVariant;
-
-interface GetVariantsResult {
-  success: boolean;
-  data: IPosVariant[];
-  message: string;
+function toPlainObject<T>(data: T): T {
+  return JSON.parse(JSON.stringify(data));
 }
 
-export async function getVariantsForPOS(): Promise<GetVariantsResult> {
+/* ------------------------------------------------------------------ */
+/* GET VARIANTS FOR POS */
+/* ------------------------------------------------------------------ */
+
+export const getVariantsForPOS = async () => {
   try {
     await connectToDatabase();
-    
+
     const variants = await Variant.find({})
-      .populate<{ product: IProduct; unit: IUnit }>([
-        {
-          path: 'product',
-          // ✅ UPDATED: Add 'tax' to the selection
-          select: 'productName productCode stockQuantity brand category tax mrp',
-          populate: [
-            { path: 'brand', select: 'name' },
-            { path: 'category', select: 'name' },
-            // ✅ NEW: Populate the nested tax field
-            { path: 'tax', select: 'gst hsn' }
-          ]
-        },
-        {
-          path: 'unit',
-          select: 'name'
-        }
-      ])
+      .populate({
+        path: "product",
+        populate: [
+          { path: "category", select: "name" },
+          { path: "brand", select: "name" },
+          { path: "tax", select: "gst hsn" },
+        ],
+        select: "productName productCode category brand tax",
+      })
+      .populate("unit", "name")
+      .select(
+        "product variantVolume unit sellingPrice purchasePrice mrp discount stockQuantity stockAlertQuantity variantColor image qrCode packingCharges laborCharges electricityCharges others1 others2 createdAt updatedAt"
+      )
       .lean();
 
     if (!variants || variants.length === 0) {
       return {
-        success: false,
+        success: true,
         data: [],
-        message: "No variants found."
+        message: "No variants found.",
       };
     }
-    
+
+    // Map variants to IPosVariant format
+    const mappedVariants: IPosVariant[] = variants.map((variant: any) => {
+      const sellingPrice = variant.sellingPrice || 0;
+      const variantVolume = variant.variantVolume || 1;
+      
+      return {
+        _id: variant._id.toString(),
+        product: {
+          _id: variant.product?._id?.toString() || "",
+          productName: variant.product?.productName || "Unknown Product",
+          productCode: variant.product?.productCode || "",
+          brand: variant.product?.brand
+            ? {
+                _id: variant.product.brand._id?.toString() || "",
+                name: variant.product.brand.name || "",
+              }
+            : undefined,
+          category: variant.product?.category
+            ? {
+                _id: variant.product.category._id?.toString() || "",
+                name: variant.product.category.name || "",
+              }
+            : undefined,
+          tax: variant.product?.tax
+            ? {
+                _id: variant.product.tax._id?.toString() || "",
+                gst: variant.product.tax.gst || 0,
+                hsn: variant.product.tax.hsn || "",
+              }
+            : undefined,
+        },
+        variantVolume,
+        unit: {
+          _id: variant.unit?._id?.toString() || "",
+          name: variant.unit?.name || "Unit",
+        },
+        variantColor: variant.variantColor,
+        
+        // Price calculations
+        price: sellingPrice,
+        sellingPrice: sellingPrice,
+        perUnitPrice: variantVolume > 0 ? sellingPrice / variantVolume : 0,
+        
+        mrp: variant.mrp,
+        discount: variant.discount,
+        stockQuantity: variant.stockQuantity || 0,
+        stockAlertQuantity: variant.stockAlertQuantity || 0,
+        
+        // Media
+        image: variant.image,
+        qrCode: variant.qrCode,
+        
+        // Charges
+        packingCharges: variant.packingCharges || 0,
+        laborCharges: variant.laborCharges || 0,
+        electricityCharges: variant.electricityCharges || 0,
+        others1: variant.others1 || 0,
+        others2: variant.others2 || 0,
+        
+        // Timestamps
+        createdAt: variant.createdAt?.toString(),
+        updatedAt: variant.updatedAt?.toString(),
+      };
+    });
+
     return {
       success: true,
-      data: JSON.parse(JSON.stringify(variants)),
-      message: "Variants fetched successfully."
+      data: toPlainObject(mappedVariants),
+      message: "Variants fetched successfully.",
     };
   } catch (error) {
-    console.error("Error fetching POS variants:", error);
-    const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+    console.error("❌ Error fetching variants for POS:", error);
     return {
       success: false,
       data: [],
-      message: `An unexpected error occurred while fetching variants: ${errorMessage}`
+      message: "Failed to fetch variants for POS.",
     };
   }
-}
+};
+
+// Export type for use in other files
+export type { IPosVariant };

@@ -1,16 +1,13 @@
-// src/components/forms/variant-form.tsx
+// src/components/forms/VariantForm.tsx
+// 🎨 UI LAYER: Pure presentational component
+
 "use client";
 
-import React, { useState, useTransition, useEffect } from "react";
-import { useForm } from "react-hook-form";
-import { useRouter } from "next/navigation";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
-import { toast } from "sonner";
+import React from "react";
 import Image from "next/image";
-import QRCode from "qrcode";
-import { Loader2, QrCode, XCircle } from "lucide-react";
+import { Loader2, QrCode, XCircle, Info } from "lucide-react";
 
+import { useVariantForm, UseVariantFormProps } from "@/hooks/variants/useVariantForm";
 import {
   Form,
   FormControl,
@@ -18,6 +15,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import {
@@ -29,266 +27,30 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import {
-  createVariant,
-  updateVariant,
-  VariantData,
-} from "@/actions/variant.actions";
-import { useVariantStore } from "@/store/variantStore";
-import { variantSchema } from "@/lib/schemas";
-import { IPopulatedVariant } from "@/lib/models/variant";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { IUnit } from "@/lib/models/unit";
 import { IPopulatedProduct } from "@/lib/models/product";
 
-interface VariantFormProps {
-  initialData?: IPopulatedVariant | null;
-}
-
-type VariantFormValues = z.infer<typeof variantSchema>;
-
-const numberInputStyles = `
-  input::-webkit-outer-spin-button,
-  input::-webkit-inner-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
-  }
-  input[type=number] {
-    -moz-appearance: textfield;
-  }
-`;
-
-const VariantForm: React.FC<VariantFormProps> = ({ initialData }) => {
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-  
-  // Zustand store
-  const { 
-    products, 
-    units, 
-    productDetails, 
+const VariantForm: React.FC<UseVariantFormProps> = ({ initialData }) => {
+  const {
+    form,
+    onSubmit,
+    isPending,
+    isEditing,
     isLoading,
-    fetchFormData, 
-    fetchProductDetails,
-    updateCalculatedPricing,
-    resetProductDetails,
-    resetCalculatedPricing,
-  } = useVariantStore();
-
-  const [imagePreview, setImagePreview] = useState<string | null>(
-    initialData?.image || null
-  );
-  const [qrCodePreview, setQrCodePreview] = useState<string | null>(
-    initialData?.qrCode || null
-  );
-  const [imageFile, setImageFile] = useState<File | null>(null);
-
-  const isEditing = !!initialData;
-
-  const form = useForm<VariantFormValues>({
-    resolver: zodResolver(variantSchema),
-    defaultValues: {
-      product: initialData?.product._id || "",
-      variantVolume: initialData?.variantVolume || 0,
-      unit: initialData?.unit._id || "",
-      unitConsumed: initialData?.unitConsumed || 0,
-      unitConsumedUnit: initialData?.unitConsumedUnit?._id || "",
-      variantColor: initialData?.variantColor || "",
-      price: initialData?.price || 0,
-      mrp: initialData?.mrp || 0,
-      discount: initialData?.discount || 0,
-      stockQuantity: initialData?.stockQuantity || 0,
-      stockAlertQuantity: initialData?.stockAlertQuantity || 0,
-      image: initialData?.image || undefined,
-      qrCode: initialData?.qrCode || undefined,
-      packingCharges: initialData?.packingCharges || 0, 
-      laborCharges: initialData?.laborCharges || 0, 
-      electricityCharges: initialData?.electricityCharges || 0, 
-      others1: initialData?.others1 || 0, 
-      others2: initialData?.others2 || 0, 
-      perUnitPrice: initialData?.perUnitPrice || 0,
-    } as VariantFormValues,
-  });
-
-  // Effect 1: Fetch form data once on mount
-  useEffect(() => {
-    fetchFormData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Effect 2: Handle product selection changes
-  useEffect(() => {
-    const subscription = form.watch((value, { name }) => {
-      if (name === "product") {
-        if (value.product) {
-          fetchProductDetails(value.product);
-        } else {
-          resetProductDetails();
-        }
-      }
-    });
-    return () => subscription.unsubscribe();
-  }, [form, fetchProductDetails, resetProductDetails]);
-
-  // Effect 3: Handle price calculation when charges or unitConsumed change
-  useEffect(() => {
-    const subscription = form.watch((value, { name }) => {
-      const priceCalculationFields = [
-        "unitConsumed",
-        "packingCharges",
-        "laborCharges",
-        "electricityCharges",
-        "others1",
-        "others2"
-      ];
-      
-      if (priceCalculationFields.includes(name as string)) {
-        const result = updateCalculatedPricing({
-          unitConsumed: Number(value.unitConsumed) || 0,
-          packingCharges: Number(value.packingCharges) || 0,
-          laborCharges: Number(value.laborCharges) || 0,
-          electricityCharges: Number(value.electricityCharges) || 0,
-          others1: Number(value.others1) || 0,
-          others2: Number(value.others2) || 0,
-          mrp: Number(value.mrp) || 0,
-        });
-        
-        form.setValue("price", result.price);
-        form.setValue("discount", result.discount);
-      }
-
-      // Handle discount calculation when price or MRP changes
-      if (name === "price" || name === "mrp") {
-        const result = updateCalculatedPricing({
-          price: Number(value.price) || 0,
-          mrp: Number(value.mrp) || 0,
-        });
-        
-        form.setValue("discount", result.discount);
-      }
-    });
-    return () => subscription.unsubscribe();
-  }, [form, updateCalculatedPricing]);
-
-  // Effect 4: Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      resetProductDetails();
-      resetCalculatedPricing();
-    };
-  }, [resetProductDetails, resetCalculatedPricing]);
-
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setImageFile(file);
-      setImagePreview(URL.createObjectURL(file));
-      form.setValue("image", file);
-    } else {
-      setImageFile(null);
-      setImagePreview(null);
-      form.setValue("image", undefined);
-    }
-  };
-
-  const onGenerateQrCode = async () => {
-    const values = form.getValues();
-    if (!productDetails.productCode) {
-      toast.error("Product code is required to generate QR code.");
-      return;
-    }
-
-    const qrData = JSON.stringify({
-      productCode: productDetails.productCode,
-      price: values.price,
-      mrp: values.mrp,
-      discount: values.discount,
-      variantVolume: values.variantVolume,
-      unit: values.unit,
-      variantColor: values.variantColor,
-      stockQuantity: values.stockQuantity,
-      stockAlertQuantity: values.stockAlertQuantity,
-    });
-
-    try {
-      const qrCodeUrl = await QRCode.toDataURL(qrData);
-      setQrCodePreview(qrCodeUrl);
-      toast.success("QR Code generated successfully!");
-      form.setValue("qrCode", qrCodeUrl);
-    } catch (error) {
-      console.error("QR Code generation error:", error);
-      toast.error("Failed to generate QR Code.");
-    }
-  };
-
-  const onSubmit = async (values: VariantFormValues) => {
-    startTransition(async () => {
-      let result;
-      let imagePath = isEditing ? initialData?.image || "" : "";
-      let qrCodePath = isEditing ? initialData?.qrCode || "" : "";
-
-      // Image upload logic
-      if (imageFile) {
-        const formData = new FormData();
-        formData.append("file", imageFile);
-        const res = await fetch("/api/upload", { method: "POST", body: formData });
-        const data = await res.json();
-        if (data.success) {
-          imagePath = data.data.url;
-        } else {
-          toast.error("Image upload failed.");
-          return;
-        }
-      }
-
-      // QR Code upload logic
-      if (qrCodePreview) {
-        const qrCodeBlob = await fetch(qrCodePreview).then(res => res.blob());
-        const qrCodeFormData = new FormData();
-        qrCodeFormData.append("file", new File([qrCodeBlob], 'variant-qr.png', { type: 'image/png' }));
-        const res = await fetch("/api/upload", { method: "POST", body: qrCodeFormData });
-        const data = await res.json();
-        if (data.success) {
-          qrCodePath = data.data.url;
-        } else {
-          toast.error("QR Code upload failed.");
-          return;
-        }
-      }
-
-      const variantData: VariantData = {
-        ...values,
-        mrp: Number(values.mrp),
-        price: Number(values.price),
-        variantVolume: Number(values.variantVolume),
-        discount: Number(values.discount),
-        stockQuantity: Number(values.stockQuantity),
-        stockAlertQuantity: Number(values.stockAlertQuantity),
-        packingCharges: Number(values.packingCharges),
-        laborCharges: Number(values.laborCharges),
-        electricityCharges: Number(values.electricityCharges),
-        others1: Number(values.others1),
-        others2: Number(values.others2),
-        perUnitPrice: Number(values.perUnitPrice),
-        unitConsumed: Number(values.unitConsumed),
-        unitConsumedUnit: values.unitConsumedUnit,
-        image: imagePath,
-        qrCode: qrCodePath,
-      };
-
-      if (isEditing && initialData) {
-        result = await updateVariant(initialData._id, variantData);
-      } else {
-        result = await createVariant(variantData);
-      }
-
-      if (result.success) {
-        toast.success(result.message);
-        router.push("/admin/variants");
-      } else {
-        toast.error(result.message);
-      }
-    });
-  };
+    categories,
+    selectedCategoryId,
+    handleCategoryChange,
+    filteredProducts,
+    units,
+    selectedProduct,
+    imagePreview,
+    handleImageChange,
+    removeImage,
+    qrCodePreview,
+    generateQRCode,
+    removeQRCode,
+  } = useVariantForm({ initialData });
 
   if (isLoading) {
     return (
@@ -299,517 +61,524 @@ const VariantForm: React.FC<VariantFormProps> = ({ initialData }) => {
   }
 
   return (
-    <>
-      <style>{numberInputStyles}</style>
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+    <Form {...form}>
+      <form onSubmit={onSubmit} className="space-y-6">
+        {/* 📦 PRODUCT SELECTION SECTION */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              Product Information
+              <Info className="h-4 w-4 text-gray-400" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* 🆕 CATEGORY DROPDOWN */}
+              <FormItem>
+                <FormLabel>Select Category *</FormLabel>
+                <Select
+                  onValueChange={handleCategoryChange}
+                  value={selectedCategoryId}
+                  disabled={isPending || isEditing}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose a category first" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {categories.map((category: any) => (
+                      <SelectItem key={category._id} value={category._id}>
+                        {category.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormDescription className="text-xs">
+                  Select category to filter products
+                </FormDescription>
+              </FormItem>
 
-          {/* Product Details Section */}
-          <h2 className="text-xl font-semibold text-gray-700">Product Information</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <FormField
-              control={form.control}
-              name="product"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Select Product</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                    disabled={isPending || isEditing}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a product" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {products.map((product: IPopulatedProduct) => (
-                        <SelectItem key={product._id} value={product._id}>
-                          {product.productName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormItem>
-              <FormLabel>Product Code</FormLabel>
-              <FormControl>
-                <Input value={productDetails.productCode} disabled />
-              </FormControl>
-            </FormItem>
-            <FormItem>
-              <FormLabel>Purchase Price</FormLabel>
-              <FormControl>
-                <Input
-                  type="number"
-                  value={productDetails.purchasePrice}
-                  disabled
-                />
-              </FormControl>
-            </FormItem>
-            <FormItem>
-              <FormLabel>Selling/Board Price</FormLabel>
-              <FormControl>
-                <Input
-                  type="number"
-                  value={productDetails.sellingPrice}
-                  disabled
-                />
-              </FormControl>
-            </FormItem>
-          </div>
-          <Separator className="my-6" />
+              {/* PRODUCT DROPDOWN - Now filtered by category */}
+              <FormField
+                control={form.control}
+                name="product"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Select Product *</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value}
+                      disabled={isPending || isEditing || !selectedCategoryId}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder={
+                            selectedCategoryId 
+                              ? "Choose a product" 
+                              : "Select category first"
+                          } />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {filteredProducts.length === 0 ? (
+                          <div className="px-2 py-3 text-sm text-gray-500">
+                            No products in this category
+                          </div>
+                        ) : (
+                          filteredProducts.map((product: IPopulatedProduct) => (
+                            <SelectItem key={product._id} value={product._id}>
+                              {product.productName}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-          {/* Variant and Consumption Details Section */}
-          <h2 className="text-xl font-semibold text-gray-700">Variant and Material Details</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Row 1: Variant Volume and Unit */}
-            <FormField
-              control={form.control}
-              name="variantVolume"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Variant Volume</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      {...field}
-                      onWheel={(e) => e.currentTarget.blur()}
-                      disabled={isPending}
-                      className={numberInputStyles}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="unit"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Variant Unit</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                    disabled={isPending}
-                  >
+              {selectedProduct && (
+                <>
+                  <FormItem>
+                    <FormLabel>Product Code</FormLabel>
                     <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a unit" />
-                      </SelectTrigger>
+                      <Input
+                        value={selectedProduct.productCode || "N/A"}
+                        disabled
+                        className="bg-gray-50"
+                      />
                     </FormControl>
-                    <SelectContent>
-                      {units.map((unit: IUnit) => (
-                        <SelectItem key={unit._id} value={unit._id}>
-                          {unit.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            {/* Row 2: Unit Consumed and Unit */}
-            <FormField
-              control={form.control}
-              name="unitConsumed"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Unit Consumed (for this variant)</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      {...field}
-                      onWheel={(e) => e.currentTarget.blur()}
-                      disabled={isPending}
-                      className={numberInputStyles}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="unitConsumedUnit"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Consumed Unit</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                    disabled={isPending}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a unit" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {units.map((unit: IUnit) => (
-                        <SelectItem key={unit._id} value={unit._id}>
-                          {unit.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <FormField
-              control={form.control}
-              name="variantColor"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Variant Color</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="e.g., Red, Blue"
-                      {...field}
-                      disabled={isPending}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-          <Separator className="my-6" />
+                  </FormItem>
 
-          {/* Pricing Details Section */}
-          <h2 className="text-xl font-semibold text-gray-700">Pricing and Inventory</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end  p-4 rounded-lg border">
-            {/* Calculated Price */}
-            <FormField
-              control={form.control}
-              name="price"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="font-bold text-blue-700">Price of Variant (Calculated Field)</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      {...field}
-                      onWheel={(e) => e.currentTarget.blur()}
-                      readOnly={true}
-                      disabled={true}
-                      className={`${numberInputStyles} bg-blue-50 border-blue-300  font-bold`}
-                    />
-                  </FormControl>
-                  <span className="text-xs text-gray-500 block mt-1">
-                    Calculated as: (Consumed Unit * Selling Price) + Total Charges.
-                  </span>
-                  <FormMessage />
-                </FormItem>
+                  <FormItem>
+                    <FormLabel>Base Unit</FormLabel>
+                    <FormControl>
+                      <Input
+                        value={selectedProduct.baseUnit.name}
+                        disabled
+                        className="bg-gray-50"
+                      />
+                    </FormControl>
+                  </FormItem>
+
+                  <FormItem className="md:col-span-2">
+                    <FormLabel>Selling Types Supported</FormLabel>
+                    <div className="flex gap-2 flex-wrap p-2 bg-gray-50 rounded border">
+                      {selectedProduct.sellingTypes.map((type) => (
+                        <span
+                          key={type}
+                          className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs"
+                        >
+                          {type}
+                        </span>
+                      ))}
+                    </div>
+                  </FormItem>
+                </>
               )}
-            />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Separator />
+
+        {/* 📏 VARIANT DETAILS SECTION */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Variant Details</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <FormField
+                control={form.control}
+                name="variantVolume"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Variant Volume/Quantity *</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        placeholder="e.g., 1, 0.5, 250"
+                        {...field}
+                        disabled={isPending}
+                      />
+                    </FormControl>
+                    <FormDescription className="text-xs">
+                      Size of this variant (e.g., 1L, 500ml, 250g)
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="unit"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Unit *</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value}
+                      disabled={isPending}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select unit" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {units.map((unit: IUnit) => (
+                          <SelectItem key={unit._id} value={unit._id}>
+                            {unit.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="variantColor"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Variant Color/Label</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="e.g., Red, Premium"
+                        {...field}
+                        disabled={isPending}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Separator />
+
+        {/* 💰 PRICING SECTION */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Pricing & Stock</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Pricing Row */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <FormField
+                control={form.control}
+                name="purchasePrice"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Purchase Price *</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        placeholder="0.00"
+                        {...field}
+                        disabled={isPending}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="sellingPrice"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Selling Price (Calculated)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        {...field}
+                        disabled
+                        className="bg-blue-50 font-semibold"
+                      />
+                    </FormControl>
+                    <FormDescription className="text-xs">
+                      Auto-calculated: Purchase + All Charges
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="mrp"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>MRP *</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        placeholder="0.00"
+                        {...field}
+                        disabled={isPending}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
             {/* Discount Display */}
-            <div className="flex flex-col space-y-2">
-              <p className="text-sm font-medium text-muted-foreground">Calculated Discount</p>
-              <div className="flex items-center space-x-2 h-10">
-                <span className="text-2xl font-extrabold text-green-600">
+            <div className="p-4 bg-gray-500 border border-black rounded-lg">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-200">
+                  Calculated Discount
+                </span>
+                <span className="text-2xl font-bold text-green-400">
                   {form.watch("discount") || 0}%
                 </span>
               </div>
             </div>
-            {/* MRP Input */}
-            <FormField
-              control={form.control}
-              name="mrp"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Maximum Retail Price (MRP)</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      {...field}
-                      onWheel={(e) => e.currentTarget.blur()}
-                      disabled={isPending}
-                      className={numberInputStyles}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-          
-          {/* Stock Details */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="stockQuantity"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Stock Quantity (SKU)</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      {...field}
-                      onWheel={(e) => e.currentTarget.blur()}
-                      disabled={isPending}
-                      className={numberInputStyles}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="stockAlertQuantity"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Stock Alert Quantity</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      {...field}
-                      onWheel={(e) => e.currentTarget.blur()}
-                      disabled={isPending}
-                      className={numberInputStyles}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-          <Separator className="my-6" />
 
-          {/* Charges Section */}
+            {/* Stock */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="stockQuantity"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Stock Quantity *</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        placeholder="0"
+                        {...field}
+                        disabled={isPending}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-           <h2 className="text-xl font-semibold text-gray-700">Operational Charges</h2>
-      <span className="text-sm text-gray-500 block mb-4">
-        These fields contribute to the calculated **Price of Variant**.
-      </span>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-         <FormField
-          control={form.control}
-          name="packingCharges"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Packing Charges</FormLabel>
-              <FormControl>
-                <Input type="number" step="0.01" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="laborCharges"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Labor Charges</FormLabel>
-              <FormControl>
-                <Input type="number" step="0.01" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="electricityCharges"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Electricity Charges</FormLabel>
-              <FormControl>
-                <Input type="number" step="0.01" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="others1"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Oil Expelling Charges</FormLabel>
-              <FormControl>
-                <Input type="number" step="0.01" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="others2"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Others</FormLabel>
-              <FormControl>
-                <Input type="number" step="0.01" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+              <FormField
+                control={form.control}
+                name="stockAlertQuantity"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Low Stock Alert At</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        placeholder="0"
+                        {...field}
+                        disabled={isPending}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          </CardContent>
+        </Card>
 
-        </div>
-      <Separator className="my-6" />
-      {/* What is the per unit price field  */}
+        <Separator />
 
-      <h2 className="text-xl font-semibold text-gray-700">Unit Pricing</h2>
-      <span className="text-sm text-gray-500 block mb-4">
-        Specify the price per ml/gram/unit/set if applicable.
-      </span>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <FormField
-          control={form.control}
-          name="perUnitPrice"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Per Unit Price (₹/ml or ₹/gram or ₹/unit or ₹/set)</FormLabel>
-              <FormControl>
-                <Input 
-                  type="number" 
-                  step="0.01" 
-                  placeholder="Enter per unit price"
-                  {...field}
-                  onWheel={(e) => e.currentTarget.blur()}
-                  disabled={isPending}
-                  className={numberInputStyles}
-                />
-              </FormControl>
-              <span className="text-xs text-gray-500 block mt-1">
-                Optional: Price per smallest unit of measurement
-              </span>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-      </div>
+        {/* 💸 CHARGES SECTION */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Operational Charges</CardTitle>
+            <p className="text-sm text-gray-500">
+              These charges are added to the purchase price to calculate selling price
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <FormField
+                control={form.control}
+                name="packingCharges"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Packing</FormLabel>
+                    <FormControl>
+                      <Input type="number" step="0.01" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-      <Separator className="my-6" />
+              <FormField
+                control={form.control}
+                name="laborCharges"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Labor</FormLabel>
+                    <FormControl>
+                      <Input type="number" step="0.01" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-      {/* Media Section */}
-      <h2 className="text-xl font-semibold text-gray-700">Media and Identification</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <FormField
-          control={form.control}
-          name="image"
-          render={() => (
-            <FormItem>
-              <FormLabel>Variant Image</FormLabel>
-              <FormControl>
+              <FormField
+                control={form.control}
+                name="electricityCharges"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Electricity</FormLabel>
+                    <FormControl>
+                      <Input type="number" step="0.01" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="others1"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Other 1</FormLabel>
+                    <FormControl>
+                      <Input type="number" step="0.01" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="others2"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Other 2</FormLabel>
+                    <FormControl>
+                      <Input type="number" step="0.01" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Separator />
+
+        {/* 📸 MEDIA SECTION */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Media & Identification</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Image Upload */}
+              <div className="space-y-2">
+                <FormLabel>Variant Image</FormLabel>
                 <Input
                   type="file"
+                  accept="image/*"
                   onChange={handleImageChange}
                   disabled={isPending}
                 />
-              </FormControl>
-              {imagePreview && (
-                <div className="relative w-48 h-48 mt-2 border rounded-lg p-1">
-                  <Image
-                    src={imagePreview}
-                    alt="Image Preview"
-                    fill
-                    style={{ objectFit: "contain" }}
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => {
-                      setImagePreview(null);
-                      setImageFile(null);
-                      form.setValue("image", undefined);
-                    }}
-                    className="absolute top-0 right-0 p-1 bg-white rounded-full shadow-md"
-                  >
-                    <XCircle className="h-4 w-4 text-red-500" />
-                  </Button>
-                </div>
-              )}
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <div>
-          <FormLabel>QR Code</FormLabel>
-          <p className="text-sm text-muted-foreground mb-2">
-            Generate or upload a QR code for quick scanning.
-          </p>
-          <div className="flex space-x-2">
-            <Button
-              type="button"
-              onClick={onGenerateQrCode}
-              disabled={isPending}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              <QrCode className="mr-2 h-4 w-4" /> Generate QR Code
-            </Button>
-          </div>
-          {qrCodePreview && (
-            <div className="relative w-48 h-48 mt-4 border rounded-lg p-1">
-              <Image
-                src={qrCodePreview}
-                alt="QR Code Preview"
-                fill
-                style={{ objectFit: "contain" }}
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={() => {
-                  setQrCodePreview(null);
-                  form.setValue("qrCode", undefined);
-                }}
-                className="absolute top-0 right-0 p-1 bg-white rounded-full shadow-md"
-              >
-                <XCircle className="h-4 w-4 text-red-500" />
-              </Button>
+                {imagePreview && (
+                  <div className="relative w-48 h-48 mt-2 border rounded-lg p-1">
+                    <Image
+                      src={imagePreview}
+                      alt="Variant Image"
+                      fill
+                      className="object-contain"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={removeImage}
+                      className="absolute -top-2 -right-2 bg-white rounded-full shadow-md"
+                    >
+                      <XCircle className="h-5 w-5 text-red-500" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {/* QR Code */}
+              <div className="space-y-2">
+                <FormLabel>QR Code</FormLabel>
+                <Button
+                  type="button"
+                  onClick={generateQRCode}
+                  disabled={isPending || !selectedProduct}
+                  className="w-full"
+                >
+                  <QrCode className="mr-2 h-4 w-4" />
+                  Generate QR Code
+                </Button>
+                {qrCodePreview && (
+                  <div className="relative w-48 h-48 mt-2 border rounded-lg p-1">
+                    <Image
+                      src={qrCodePreview}
+                      alt="QR Code"
+                      fill
+                      className="object-contain"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={removeQRCode}
+                      className="absolute -top-2 -right-2 bg-white rounded-full shadow-md"
+                    >
+                      <XCircle className="h-5 w-5 text-red-500" />
+                    </Button>
+                  </div>
+                )}
+              </div>
             </div>
-          )}
+          </CardContent>
+        </Card>
+
+        {/* ACTION BUTTONS */}
+        <div className="flex justify-end gap-3 pt-6">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => window.history.back()}
+            disabled={isPending}
+          >
+            Cancel
+          </Button>
+          <Button type="submit" disabled={isPending} className="min-w-[150px]">
+            {isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : isEditing ? (
+              "Update Variant"
+            ) : (
+              "Create Variant"
+            )}
+          </Button>
         </div>
-      </div>
-      
-      <div className="flex justify-end gap-2 pt-8">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => router.back()}
-          disabled={isPending}
-        >
-          Cancel
-        </Button>
-        <Button type="submit" disabled={isPending} className="min-w-[150px]">
-          {isPending ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Please wait...
-            </>
-          ) : isEditing ? (
-            "Update Variant"
-          ) : (
-            "Add Variant"
-          )}
-        </Button>
-      </div>
-    </form>
-  </Form>
-</>
-);
+      </form>
+    </Form>
+  );
 };
+
 export default VariantForm;

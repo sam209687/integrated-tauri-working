@@ -5,6 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import * as z from "zod";
+import { toast } from "sonner";
 
 import { categorySchema } from "@/lib/schemas";
 import { createCategory, updateCategory } from "@/actions/category.actions";
@@ -27,7 +28,7 @@ export function CategoryForm({ initialData }: CategoryFormProps) {
     resolver: zodResolver(categorySchema),
     defaultValues: {
       name: initialData?.name || "",
-      codePrefix: initialData?.codePrefix || "", // Add default value for codePrefix
+      codePrefix: initialData?.codePrefix || "",
     },
   });
 
@@ -35,21 +36,27 @@ export function CategoryForm({ initialData }: CategoryFormProps) {
 
   async function onSubmit(values: z.infer<typeof categorySchema>) {
     startTransition(async () => {
-      let result;
-      const formData = new FormData();
-      formData.append("name", values.name);
-      formData.append("codePrefix", values.codePrefix); // Append the codePrefix field
+      try {
+        let result;
+        const formData = new FormData();
+        formData.append("name", values.name);
+        formData.append("codePrefix", values.codePrefix);
 
-      if (isEditing && initialData?._id) {
-        result = await updateCategory(initialData._id.toString(), formData);
-      } else {
-        result = await createCategory(formData);
-      }
+        if (isEditing && initialData?._id) {
+          result = await updateCategory(initialData._id.toString(), formData);
+        } else {
+          result = await createCategory(formData);
+        }
 
-      if (result.success) {
-        router.push("/admin/category");
-      } else {
-        console.error(result.message);
+        if (result.success) {
+          toast.success(result.message || "Category saved successfully!");
+          router.push("/admin/category");
+          router.refresh();
+        } else {
+          toast.error(result.message || "Failed to save category");
+        }
+      } catch (error) {
+        toast.error("An unexpected error occurred");
       }
     });
   }
