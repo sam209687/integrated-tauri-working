@@ -27,18 +27,24 @@ const isValidPrice = (value: number | string | undefined): boolean => {
 // Component to manage the state of a single editable price row
 const EditablePriceRow = ({ product, index }: { product: BoardPriceProduct; index: number }) => {
     const { updatePrice } = useBoardPriceStore();
-    const [currentPrice, setCurrentPrice] = useState(product.sellingPrice.toString());
+    
+    // ✅ FIX: Safe initialization with fallback
+    const initialPrice = product.sellingPrice ?? 0;
+    const [currentPrice, setCurrentPrice] = useState(initialPrice.toString());
     const [isUpdating, setIsUpdating] = useState(false);
     const [isHovered, setIsHovered] = useState(false);
     const [isFocused, setIsFocused] = useState(false);
     
     const isPriceChanged = useMemo(() => {
         const newPrice = parseFloat(currentPrice);
-        return !isNaN(newPrice) && newPrice !== product.sellingPrice;
-    }, [currentPrice, product.sellingPrice]);
+        return !isNaN(newPrice) && newPrice !== initialPrice;
+    }, [currentPrice, initialPrice]);
 
     useEffect(() => {
-        setCurrentPrice(product.sellingPrice.toString());
+        // ✅ FIX: Safe update with null check
+        if (product.sellingPrice !== undefined && product.sellingPrice !== null) {
+            setCurrentPrice(product.sellingPrice.toString());
+        }
     }, [product.sellingPrice]);
 
     const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -92,7 +98,7 @@ const EditablePriceRow = ({ product, index }: { product: BoardPriceProduct; inde
                     className="flex items-center gap-2"
                 >
                     <div className="w-2 h-2 bg-blue-500 rounded-full" />
-                    {product.productName}
+                    {product.productName || 'N/A'}
                 </motion.div>
             </TableCell>
             <TableCell className="dark:text-gray-400 text-gray-600">
@@ -103,7 +109,8 @@ const EditablePriceRow = ({ product, index }: { product: BoardPriceProduct; inde
                     className="flex items-center gap-2"
                 >
                     <span className="w-1.5 h-1.5 bg-purple-500 rounded-full" />
-                    {product.variantVolume || 'N/A'}
+                    {/* ✅ FIX: Handle undefined baseUnit */}
+                    {product.baseUnit?.name || 'N/A'}
                 </motion.div>
             </TableCell>
             <TableCell className="dark:text-gray-400 text-gray-600">
@@ -114,7 +121,8 @@ const EditablePriceRow = ({ product, index }: { product: BoardPriceProduct; inde
                     className="flex items-center gap-2"
                 >
                     <span className="w-1.5 h-1.5 bg-orange-500 rounded-full" />
-                    {product.unit?.name || 'N/A'}
+                    {/* ✅ FIX: This should be baseUnit, not unit */}
+                    {product.baseUnit?.name || 'N/A'}
                 </motion.div>
             </TableCell>
             <TableCell className="dark:text-gray-400 text-gray-600">
@@ -125,7 +133,7 @@ const EditablePriceRow = ({ product, index }: { product: BoardPriceProduct; inde
                     className="flex items-center gap-2"
                 >
                     <span className="w-1.5 h-1.5 bg-green-500 rounded-full" />
-                    {product.productCode}
+                    {product.productCode || 'N/A'}
                 </motion.div>
             </TableCell>
             <TableCell className="text-right">
@@ -178,7 +186,7 @@ const EditablePriceRow = ({ product, index }: { product: BoardPriceProduct; inde
                         disabled={isUpdating || !isPriceChanged || !isValidPrice(currentPrice)}
                         className={`h-8 text-xs font-semibold transition-all duration-300 ${
                             isPriceChanged && isValidPrice(currentPrice)
-                                ? 'bg-linear-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white shadow-lg border-none'
+                                ? 'bg-linear-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white shadow-lg border-none'
                                 : 'bg-gray-600 hover:bg-gray-700 text-gray-300 border-none'
                         }`}
                     >
@@ -269,14 +277,14 @@ export function BoardPriceCard({ data, totalCount, isLoading, error }: BoardPric
       <Card className="relative backdrop-blur-2xl dark:bg-white/10 bg-white/70 dark:border-white/20 border-white/50 border rounded-3xl shadow-2xl overflow-hidden h-full flex flex-col">
         {/* Animated Background */}
         <motion.div
-          className="absolute inset-0 bg-linear-to-br dark:from-blue-500/10 dark:to-cyan-500/10 from-blue-100 to-cyan-100 opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+          className="absolute inset-0 bg-linearr dark:from-blue-500/10 dark:to-cyan-500/10 from-blue-100 to-cyan-100 opacity-0 group-hover:opacity-100 transition-opacity duration-500"
           animate={{ rotate: [0, 360] }}
           transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
         />
 
         {/* Shimmer Effect */}
         <motion.div
-          className="absolute inset-0 bg-linear-to-r from-transparent via-white/20 to-transparent"
+          className="absolute inset-0 bg-linear from-transparent via-white/20 to-transparent"
           animate={{ x: ['-100%', '100%'] }}
           transition={{ duration: 3, repeat: Infinity, repeatDelay: 5 }}
         />
@@ -341,7 +349,7 @@ export function BoardPriceCard({ data, totalCount, isLoading, error }: BoardPric
                     <TableHead className="dark:text-gray-300 text-gray-700 font-bold">
                       <div className="flex items-center gap-2">
                         <span className="w-2 h-2 bg-purple-500 rounded-full" />
-                        Volume
+                        Category
                       </div>
                     </TableHead>
                     <TableHead className="dark:text-gray-300 text-gray-700 font-bold">

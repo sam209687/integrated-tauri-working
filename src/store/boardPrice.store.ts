@@ -6,9 +6,8 @@ import {
   getBoardPriceProducts, 
   updateProductSellingPrice, 
   BoardPriceItem 
-} from '@/actions/product.actions'; 
+} from '@/actions/boardPrice.actions'; // ✅ Fixed import path
 
-// 💡 FIX: Changed interface to type alias to resolve the empty-object-type error.
 // State type for a single product item in the board
 export type BoardPriceProduct = BoardPriceItem;
 
@@ -35,7 +34,6 @@ export const useBoardPriceStore = create<BoardPriceState>((set, get) => ({
 
       if (result.success && result.data) {
         set({
-          // The BoardPriceItem[] type is now assignable to BoardPriceProduct[]
           products: result.data as BoardPriceProduct[], 
           totalProducts: result.totalCount,
           isLoading: false,
@@ -59,50 +57,48 @@ export const useBoardPriceStore = create<BoardPriceState>((set, get) => ({
   updatePrice: async (id, newPrice) => {
     // Basic validation
     if (newPrice <= 0 || isNaN(newPrice)) {
-        toast.error("Invalid price entered.");
-        return;
+      toast.error("Invalid price entered.");
+      return;
     }
     
     // Optimistic update
     const originalProducts = get().products;
     const originalProduct = originalProducts.find(p => p._id === id);
     if (originalProduct) {
-        set(state => ({
-            products: state.products.map(p => 
-                p._id === id ? { ...p, sellingPrice: newPrice } : p
-            )
-        }));
+      set(state => ({
+        products: state.products.map(p => 
+          p._id === id ? { ...p, sellingPrice: newPrice } : p
+        )
+      }));
     }
 
     try {
-        const result = await updateProductSellingPrice(id, newPrice);
+      const result = await updateProductSellingPrice(id, newPrice);
 
-        if (result.success) {
-            toast.success(result.message);
-            // The state is already updated optimistically, so no need to update again unless 
-            // the server returned a slightly different value (which is handled by refetch/next revalidate)
-        } else {
-            // Revert on failure
-            if (originalProduct) {
-                set(state => ({
-                    products: state.products.map(p => 
-                        p._id === id ? originalProduct : p
-                    )
-                }));
-            }
-            toast.error(result.message || 'Failed to update price.');
-        }
-    } catch (err) {
+      if (result.success) {
+        toast.success(result.message);
+      } else {
         // Revert on failure
         if (originalProduct) {
-            set(state => ({
-                products: state.products.map(p => 
-                    p._id === id ? originalProduct : p
-                )
-            }));
+          set(state => ({
+            products: state.products.map(p => 
+              p._id === id ? originalProduct : p
+            )
+          }));
         }
-        console.error("Error updating price:", err);
-        toast.error('An unexpected error occurred during price update.');
+        toast.error(result.message || 'Failed to update price.');
+      }
+    } catch (err) {
+      // Revert on failure
+      if (originalProduct) {
+        set(state => ({
+          products: state.products.map(p => 
+            p._id === id ? originalProduct : p
+          )
+        }));
+      }
+      console.error("Error updating price:", err);
+      toast.error('An unexpected error occurred during price update.');
     }
   },
 }));

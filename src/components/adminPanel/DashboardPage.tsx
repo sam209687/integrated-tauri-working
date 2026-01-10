@@ -14,7 +14,8 @@ import { SalesTrackingMetrics } from "./SalesTrackingMetrics";
 import { DashboardFilter } from "./DashboardFilter";
 import { StockAlertCard } from "./StockAlertCard";
 import { BoardPriceCard } from "./BoardPriceCard"; 
-// import { ReportGenerator } from "./ReportGenerator"; // ✅ NEW: Import ReportGenerator
+import { ReportGenerator } from "./dashboard/ReportGenerator";
+import { RetailBusinessReport } from "@/components/reports/retail-business-report"; // ✅ NEW
 
 import { useMonthlySalesStore } from "@/store/monthlySales.store"; 
 import { useCustomerDetailsStore } from "@/store/customerDetails.store"; 
@@ -23,7 +24,6 @@ import { useBoardPriceStore } from "@/store/boardPrice.store";
 import { PackingMaterialAlertCard } from "./PackingMaterialAlertCard";
 import { PermanentCalendarCard } from "./PermanentCalendarCard";
 import { DashboardLoading } from "./DashboardLoading";
-import { ReportGenerator } from "./dashboard/ReportGenerator";
 
 const DynamicSalesOverviewChart = dynamic(
   () => import("./SaleOverviewChart").then((mod) => mod.SalesOverviewChart),
@@ -132,7 +132,7 @@ export function DashboardPage({ initialData }: DashboardPageProps) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">Admin Dashboard</h1>
-        {/* ✅ UPDATED: All filter and action buttons in a single row */}
+        {/* All filter and action buttons in a single row */}
         <div className="flex items-center space-x-4">
           
           <DashboardFilter 
@@ -143,7 +143,7 @@ export function DashboardPage({ initialData }: DashboardPageProps) {
             key={activeFilterType} 
           />
           
-          {/* ✅ NEW: Report Generator Button */}
+          {/* Report Generator Button */}
           <ReportGenerator />
           
           <Button onClick={refreshData} disabled={isLoading || isFilteredDataLoading}>
@@ -184,6 +184,11 @@ export function DashboardPage({ initialData }: DashboardPageProps) {
             totalCustomerCount={totalCustomerCount}
             isLoading={isCustomerLoading}
         />
+      </div>
+      
+      {/* ✅ NEW: Retail Business Report (Full Width) */}
+      <div className="grid grid-cols-1 gap-4">
+        <RetailBusinessReport />
       </div>
       
       {/* Stock and Packing Material Alert Cards (2 equal columns) */}

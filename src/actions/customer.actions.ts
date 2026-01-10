@@ -109,6 +109,34 @@ export const searchCustomersByPhonePrefix = async (
 };
 
 /**
+ * ✅ NEW: Search Customers By Name
+ * @description Searches for customers whose name contains the search term (case-insensitive)
+ */
+export const searchCustomersByName = async (
+  searchTerm: string
+): Promise<ActionResponse<ICustomer[]>> => {
+  try {
+    await connectToDatabase();
+
+    if (searchTerm.trim().length < 2) {
+      return { success: true, data: [] };
+    }
+
+    const customers = await Customer.find({
+      name: { $regex: searchTerm.trim(), $options: 'i' },
+    })
+      .select("phone name address")
+      .limit(5)
+      .lean();
+
+    return { success: true, data: JSON.parse(JSON.stringify(customers)) };
+  } catch (error) {
+    console.error("SEARCH CUSTOMERS BY NAME SERVER ERROR:", error);
+    return { success: false, message: "Failed to search customers by name.", error: "Server error." };
+  }
+};
+
+/**
  * @title Get Latest Customers and Count (for dashboard)
  */
 export async function getLatestCustomersAndCount(): Promise<{

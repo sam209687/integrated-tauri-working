@@ -3,16 +3,14 @@
 import { create } from 'zustand';
 import { toast } from 'sonner';
 
-// ⚠️ ASSUMPTION: You need to import ICustomer from your models
 import { ICustomer } from '@/lib/models/customer'; 
 
-// ⚠️ ASSUMPTION: You need to import your customer actions
 import { 
     createCustomer as createCustomerAction, 
-    searchCustomersByPhonePrefix as searchCustomersAction 
+    searchCustomersByPhonePrefix as searchCustomersAction,
+    searchCustomersByName as searchCustomersByNameAction
 } from '@/actions/customer.actions'; 
 
-// ⚠️ ASSUMPTION: You need to import your invoice action for visit count
 import { getInvoiceCountByCustomer } from '@/actions/invoice.actions'; 
 
 
@@ -30,8 +28,9 @@ interface CustomerState {
   setName: (name: string) => void;
   setAddress: (address: string) => void;
   searchCustomersByPhonePrefix: (prefix: string) => Promise<void>; 
+  searchCustomersByName: (searchTerm: string) => Promise<void>; // ✅ NEW
   selectCustomer: (selectedCustomer: ICustomer) => Promise<void>; 
-  createCustomer: () => Promise<void>; // ✅ MODIFIED: Implemented below
+  createCustomer: () => Promise<void>;
   resetCustomer: () => void;
 }
 
@@ -57,7 +56,6 @@ export const useCustomerStore = create<CustomerState>((set, get) => ({
 
     set({ isLoading: true });
     try {
-      // ✅ MODIFIED: Use the imported server action instead of a direct API route call
       const result = await searchCustomersAction(prefix);
 
       if (result.success && result.data) {
@@ -75,8 +73,33 @@ export const useCustomerStore = create<CustomerState>((set, get) => ({
     }
   },
 
+  // ✅ NEW: Search customers by name
+  searchCustomersByName: async (searchTerm) => {
+    if (searchTerm.trim().length < 2) {
+        set({ suggestions: [] });
+        return;
+    }
+
+    set({ isLoading: true });
+    try {
+      const result = await searchCustomersByNameAction(searchTerm);
+
+      if (result.success && result.data) {
+        set({
+          suggestions: result.data as ICustomer[],
+          isLoading: false,
+        });
+      } else {
+        set({ suggestions: [], isLoading: false });
+      }
+    } catch (error) {
+      console.error("Error searching customers by name:", error);
+      set({ isLoading: false });
+      toast.error("Error searching for customer by name.");
+    }
+  },
+
   selectCustomer: async (selectedCustomer) => {
-    // This is run when the user clicks a suggestion
     const countResult = await getInvoiceCountByCustomer(selectedCustomer._id);
 
     set({
@@ -85,13 +108,12 @@ export const useCustomerStore = create<CustomerState>((set, get) => ({
       address: selectedCustomer.address || '',
       customer: selectedCustomer,
       isCustomerFound: true,
-      suggestions: [], // Clear suggestions after selection
+      suggestions: [],
       visitCount: countResult.success ? countResult.data : 0,
     });
     toast.success(`Customer selected: ${selectedCustomer.name}`);
   },
 
-  // ✅ FIX: Implementation for creating or confirming a customer
   createCustomer: async () => {
     const { phone, name, address, selectCustomer } = get(); 
     
@@ -105,11 +127,9 @@ export const useCustomerStore = create<CustomerState>((set, get) => ({
     const dataToSend = { phone, name, address };
     
     try {
-        // Calls the server action to CREATE the customer (or return existing one if found)
         const result = await createCustomerAction(dataToSend);
         
         if (result.success && result.data) {
-            // Use the selectCustomer action to update all related state fields
             await selectCustomer(result.data as ICustomer);
             toast.success(result.message || "Customer added/selected successfully!");
         } else {
@@ -117,7 +137,7 @@ export const useCustomerStore = create<CustomerState>((set, get) => ({
         }
     } catch (error) {
         toast.error("An unexpected error occurred while adding the customer.");
-        console.error("CREATE CUSTOMer CLIENT ERROR:", error);
+        console.error("CREATE CUSTOMER CLIENT ERROR:", error);
     } finally {
         set({ isLoading: false });
     }

@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Loader2, Trophy, Sparkles, X, Gift } from "lucide-react";
+import { Loader2, Trophy, Sparkles, X, Gift, XCircle } from "lucide-react";
 
 import { usePosStore } from "@/store/posStore";
 import { useOecStore } from "@/store/oecStore";
@@ -24,7 +24,6 @@ import { createInvoice, InvoiceDataPayload } from "@/actions/invoice.actions";
 import { useDebounce } from "@/hooks/use-debounce";
 import { toast } from "sonner";
 
-// Import Messaging Services
 import { sendPdfToTelegram } from "@/lib/telegram/sendPdfToTelegram";
 import { sendPdfToWhatsApp } from "@/lib/whatsapp/sendPdfToWhatsApp";
 
@@ -51,7 +50,8 @@ type InvoiceToSend = {
 
 export function BillingSection() {
   const { data: session } = useSession();
-  const inputRef = useRef<HTMLInputElement>(null);
+  const phoneInputRef = useRef<HTMLInputElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
   const {
     cart,
@@ -73,6 +73,7 @@ export function BillingSection() {
     setName,
     setAddress,
     searchCustomersByPhonePrefix,
+    searchCustomersByName,
     selectCustomer,
     createCustomer,
     resetCustomer,
@@ -115,6 +116,7 @@ export function BillingSection() {
   }, [fetchOecs]);
 
   const debouncedPhonePrefix = useDebounce(phone, 300);
+  const debouncedNameSearch = useDebounce(name, 300);
 
   const subtotal = useMemo(
     () => cart.reduce((acc, item) => acc + item.price * item.quantity, 0),
@@ -143,6 +145,7 @@ export function BillingSection() {
 
   const debouncedChangeAmount = useDebounce(changeAmount, 750);
 
+  // Phone search logic
   useEffect(() => {
     if (debouncedPhonePrefix.length >= 3 && debouncedPhonePrefix.length < 10) {
       searchCustomersByPhonePrefix(debouncedPhonePrefix);
@@ -151,10 +154,19 @@ export function BillingSection() {
     }
   }, [debouncedPhonePrefix, searchCustomersByPhonePrefix]);
 
+  // Name search logic
   useEffect(() => {
-    if (phone.length === 0) {
+    if (phone.length === 0 && debouncedNameSearch.trim().length >= 2 && !isCustomerFound) {
+      searchCustomersByName(debouncedNameSearch);
+    } else if (phone.length === 0 && debouncedNameSearch.trim().length < 2) {
+      useCustomerStore.setState({ suggestions: [] });
+    }
+  }, [debouncedNameSearch, phone, searchCustomersByName, isCustomerFound]);
+
+  useEffect(() => {
+    if (phone.length === 0 && name.length === 0) {
       resetCustomer();
-    } else if (phone.length < 10 && isCustomerFound) {
+    } else if (phone.length < 10 && isCustomerFound && phone.length > 0) {
       useCustomerStore.setState({
         isCustomerFound: false,
         customer: null,
@@ -163,7 +175,7 @@ export function BillingSection() {
         visitCount: 0,
       });
     }
-  }, [phone, resetCustomer, isCustomerFound]);
+  }, [phone, name, resetCustomer, isCustomerFound]);
 
   useEffect(() => {
     if (debouncedChangeAmount > 0) fetchSuggestions(debouncedChangeAmount);
@@ -185,6 +197,12 @@ export function BillingSection() {
     setIsOilExpelling(false);
     setExcludePacking(false);
     setPackingCharges(0);
+  };
+
+  // ✅ NEW: Handle clearing selected customer to allow new search
+  const handleClearCustomer = () => {
+    resetCustomer();
+    setTimeout(() => phoneInputRef.current?.focus(), 0);
   };
 
   const handleAddOec = () => {
@@ -252,7 +270,6 @@ export function BillingSection() {
       if (result.success && result.data) {
         toast.success("Invoice saved successfully!");
 
-        // Check for offer qualifications
         if (
           result.data.offerQualifications &&
           result.data.offerQualifications.length > 0
@@ -268,10 +285,8 @@ export function BillingSection() {
           }
         }
 
-        // Open print modal
         openModal(result.data);
 
-        // Prepare invoice for messaging
         const invoiceToSend: InvoiceToSend = {
           invoiceNumber:
             (result.data as any).invoiceNumber ??
@@ -290,21 +305,18 @@ export function BillingSection() {
           offerQualifications: result.data.offerQualifications,
         };
 
-        // Prepare customer data for both Telegram and WhatsApp
         const customerData = {
           name: (customer as any)?.name ?? "",
           phone: (customer as any)?.phone ?? "",
           telegramChatId: (customer as any)?.telegramChatId ?? null,
-          whatsappNumber: (customer as any)?.phone ?? null, // Use phone as WhatsApp number
+          whatsappNumber: (customer as any)?.phone ?? null,
         };
 
-        // Send invoice via both Telegram AND WhatsApp simultaneously
         await Promise.all([
           sendPdfToTelegram(invoiceToSend, customerData),
           sendPdfToWhatsApp(invoiceToSend, customerData),
         ]);
 
-        // Update stocks
         const stockUpdatePayload = cart
           .filter((item) => item.type === "variant")
           .map((item) => ({
@@ -314,11 +326,9 @@ export function BillingSection() {
 
         await updateStocksAfterSale(stockUpdatePayload);
 
-        // Refresh products
         const { fetchProducts } = usePosStore.getState();
         await fetchProducts();
 
-        // Clear form
         handleClear();
       } else {
         toast.error(result.message || "Failed to save invoice.");
@@ -359,13 +369,27 @@ export function BillingSection() {
           </div>
 
           <div className="p-3 rounded-lg mt-2">
-            <h4 className="font-semibold mb-1 text-sm">Customer Details</h4>
+            <div className="flex items-center justify-between mb-1">
+              <h4 className="font-semibold text-sm">Customer Details</h4>
+              {isCustomerFound && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleClearCustomer}
+                  className="h-6 px-2 text-xs text-red-400 hover:text-red-300 hover:bg-gray-800"
+                >
+                  <XCircle className="h-3 w-3 mr-1" />
+                  Change
+                </Button>
+              )}
+            </div>
 
             <div className="flex flex-col gap-2">
               <div className="flex items-center gap-2 text-xs">
+                {/* Phone Input with Search */}
                 <div className="relative flex-1">
                   <Input
-                    ref={inputRef}
+                    ref={phoneInputRef}
                     placeholder="Phone Number"
                     className="h-8 bg-gray-700 border-none text-white"
                     type="tel"
@@ -375,9 +399,10 @@ export function BillingSection() {
                       setPhone(rawValue.slice(0, 10));
                     }}
                     maxLength={10}
+                    readOnly={isCustomerFound}
                   />
 
-                  {isLoading && (
+                  {isLoading && phone.length > 0 && (
                     <Loader2 className="animate-spin h-4 w-4 absolute right-2 top-2 text-gray-400" />
                   )}
 
@@ -393,7 +418,7 @@ export function BillingSection() {
                               e.preventDefault();
                               selectCustomer(cust);
                               useCustomerStore.setState({ suggestions: [] });
-                              setTimeout(() => inputRef.current?.focus(), 0);
+                              setTimeout(() => phoneInputRef.current?.focus(), 0);
                             }}
                           >
                             <span className="font-bold text-white">
@@ -408,19 +433,56 @@ export function BillingSection() {
                     )}
                 </div>
 
-                <Input
-                  placeholder="Name"
-                  className="h-8 bg-gray-700 border-none text-white flex-1"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  readOnly={isCustomerFound}
-                />
+                {/* Name Input with Search */}
+                <div className="relative flex-1">
+                  <Input
+                    ref={nameInputRef}
+                    placeholder="Name"
+                    className="h-8 bg-gray-700 border-none text-white"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    readOnly={isCustomerFound}
+                  />
+
+                  {isLoading && phone.length === 0 && name.length > 0 && (
+                    <Loader2 className="animate-spin h-4 w-4 absolute right-2 top-2 text-gray-400" />
+                  )}
+
+                  {/* Name suggestions dropdown */}
+                  {suggestions.length > 0 &&
+                    phone.length === 0 &&
+                    name.trim().length >= 2 &&
+                    !isCustomerFound && (
+                      <div className="absolute top-full left-0 mt-1 w-[300px] p-0 bg-gray-800 border border-gray-700 rounded-md max-h-60 overflow-y-auto z-50 shadow-lg">
+                        {suggestions.map((cust) => (
+                          <div
+                            key={cust._id}
+                            className="p-2 border-b border-gray-700 hover:bg-gray-700 cursor-pointer text-xs"
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              selectCustomer(cust);
+                              useCustomerStore.setState({ suggestions: [] });
+                              setTimeout(() => nameInputRef.current?.focus(), 0);
+                            }}
+                          >
+                            <span className="font-bold text-white">
+                              {cust.name}
+                            </span>
+                            <span className="ml-2 text-gray-400">
+                              {cust.phone}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                </div>
 
                 <Input
                   placeholder="Address (Optional)"
                   className="h-8 bg-gray-700 border-none text-white flex-1"
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
+                  readOnly={isCustomerFound}
                 />
 
                 {!isCustomerFound &&

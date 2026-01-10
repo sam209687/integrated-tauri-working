@@ -93,7 +93,10 @@ export function ReportGenerator() {
 
       const result = await generateSalesReport(start, end);
 
+      console.log("Report result:", result); // Debug log
+
       if (result.success && result.data) {
+        console.log("Report data:", result.data); // Debug log
         setReportData(result.data);
         setShowReportDialog(true);
         toast.success("Report generated successfully!");
@@ -115,14 +118,45 @@ export function ReportGenerator() {
   };
 
   const handlePrintReport = () => {
-    if (!reportData) return;
+    if (!reportData) {
+      toast.error("No report data available");
+      return;
+    }
+
+    console.log("Printing report with data:", reportData); // Debug log
+
+    // Validate data before printing
+    if (!reportData.products || reportData.products.length === 0) {
+      toast.warning("Report has no products to display");
+    }
 
     // Create a new window for printing
-    const printWindow = window.open('', '_blank');
+    const printWindow = window.open('', '_blank', 'width=800,height=600');
+    
     if (!printWindow) {
       toast.error('Please allow popups to print/download PDF');
       return;
     }
+
+    // Escape HTML to prevent injection
+    const escapeHtml = (str: string) => {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    };
+
+    // Generate product rows HTML
+    const productRows = reportData.products && reportData.products.length > 0
+      ? reportData.products.map(item => `
+          <tr>
+            <td class="product-name">${escapeHtml(item.productName || 'N/A')}</td>
+            <td>${item.variantVolume || 0} ${escapeHtml(item.unit || '')}</td>
+            <td>₹${(item.price || 0).toFixed(2)}</td>
+            <td>${item.quantity || 0}</td>
+            <td class="total-amount">₹${(item.totalAmount || 0).toFixed(2)}</td>
+          </tr>
+        `).join('')
+      : '<tr><td colspan="5" style="text-align: center; padding: 20px;">No products found in this period</td></tr>';
 
     // Generate HTML content for PDF/Print
     const htmlContent = `
@@ -130,7 +164,7 @@ export function ReportGenerator() {
       <html>
         <head>
           <meta charset="utf-8">
-          <title>Sales Report - ${reportData.reportPeriod}</title>
+          <title>Sales Report - ${escapeHtml(reportData.reportPeriod || 'Unknown Period')}</title>
           <style>
             * {
               margin: 0;
@@ -298,10 +332,6 @@ export function ReportGenerator() {
                 padding: 20px;
               }
               
-              .no-print {
-                display: none;
-              }
-              
               table {
                 page-break-inside: auto;
               }
@@ -325,22 +355,22 @@ export function ReportGenerator() {
         <body>
           <div class="header">
             <h1>Sales Report</h1>
-            <div class="period">${reportData.reportPeriod}</div>
-            <div class="date-range">${reportData.fromDate} - ${reportData.toDate}</div>
+            <div class="period">${escapeHtml(reportData.reportPeriod || 'Unknown Period')}</div>
+            <div class="date-range">${escapeHtml(reportData.fromDate || '')} - ${escapeHtml(reportData.toDate || '')}</div>
           </div>
           
           <div class="summary">
             <div class="summary-card">
               <div class="label">Total Products</div>
-              <div class="value">${reportData.summary.totalProducts}</div>
+              <div class="value">${reportData.summary?.totalProducts || 0}</div>
             </div>
             <div class="summary-card">
               <div class="label">Total Quantity</div>
-              <div class="value">${reportData.summary.totalQuantity}</div>
+              <div class="value">${reportData.summary?.totalQuantity || 0}</div>
             </div>
             <div class="summary-card">
               <div class="label">Total Revenue</div>
-              <div class="value">₹${reportData.summary.totalRevenue.toFixed(2)}</div>
+              <div class="value">₹${(reportData.summary?.totalRevenue || 0).toFixed(2)}</div>
             </div>
           </div>
           
@@ -355,21 +385,13 @@ export function ReportGenerator() {
               </tr>
             </thead>
             <tbody>
-              ${reportData.products.map(item => `
-                <tr>
-                  <td class="product-name">${item.productName}</td>
-                  <td>${item.variantVolume} ${item.unit}</td>
-                  <td>₹${item.price.toFixed(2)}</td>
-                  <td>${item.quantity}</td>
-                  <td class="total-amount">₹${item.totalAmount.toFixed(2)}</td>
-                </tr>
-              `).join('')}
+              ${productRows}
             </tbody>
           </table>
           
           <div class="grand-total">
             <div class="label">GRAND TOTAL</div>
-            <div class="value">₹${reportData.summary.totalRevenue.toFixed(2)}</div>
+            <div class="value">₹${(reportData.summary?.totalRevenue || 0).toFixed(2)}</div>
           </div>
           
           <div class="footer">
@@ -386,55 +408,66 @@ export function ReportGenerator() {
     // Wait for content to load, then trigger print
     printWindow.onload = () => {
       setTimeout(() => {
+        printWindow.focus();
         printWindow.print();
-      }, 250);
+      }, 500); // Increased delay to ensure content is rendered
     };
 
-    toast.success('Print dialog opened');
+    toast.success('Print dialog opened. Select "Save as PDF" to save.');
   };
 
   const downloadReportAsCSV = () => {
-    if (!reportData) return;
+    if (!reportData) {
+      toast.error("No report data available");
+      return;
+    }
 
-    const csvRows = [
-      ["Sales Report"],
-      [`Period: ${reportData.reportPeriod}`],
-      [`From: ${reportData.fromDate}`],
-      [`To: ${reportData.toDate}`],
-      [],
-      ["Product Name", "Volume", "Unit", "Price (₹)", "Quantity Sold", "Total Amount (₹)"],
-    ];
+    try {
+      const csvRows = [
+        ["Sales Report"],
+        [`Period: ${reportData.reportPeriod || ""}`],
+        [`From: ${reportData.fromDate || ""}`],
+        [`To: ${reportData.toDate || ""}`],
+        [],
+        ["Product Name", "Volume", "Unit", "Price (₹)", "Quantity Sold", "Total Amount (₹)"],
+      ];
 
-    reportData.products.forEach((item) => {
-      csvRows.push([
-        item.productName,
-        item.variantVolume.toString(),
-        item.unit,
-        item.price.toString(),
-        item.quantity.toString(),
-        item.totalAmount.toString(),
-      ]);
-    });
+      reportData.products?.forEach((item) => {
+        if (item) {
+          csvRows.push([
+            item.productName || "",
+            (item.variantVolume !== undefined ? item.variantVolume : "").toString(),
+            item.unit || "",
+            (item.price !== undefined ? item.price : "").toString(),
+            (item.quantity !== undefined ? item.quantity : "").toString(),
+            (item.totalAmount !== undefined ? item.totalAmount : "").toString(),
+          ]);
+        }
+      });
 
-    csvRows.push([]);
-    csvRows.push(["Summary"]);
-    csvRows.push(["Total Products", reportData.summary.totalProducts.toString()]);
-    csvRows.push(["Total Quantity Sold", reportData.summary.totalQuantity.toString()]);
-    csvRows.push(["Total Revenue", `₹${reportData.summary.totalRevenue.toFixed(2)}`]);
+      csvRows.push([]);
+      csvRows.push(["Summary"]);
+      csvRows.push(["Total Products", (reportData.summary?.totalProducts || 0).toString()]);
+      csvRows.push(["Total Quantity Sold", (reportData.summary?.totalQuantity || 0).toString()]);
+      csvRows.push(["Total Revenue", `₹${(reportData.summary?.totalRevenue || 0).toFixed(2)}`]);
 
-    const csvContent = csvRows.map((row) => row.join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    
-    link.setAttribute("href", url);
-    link.setAttribute("download", `sales_report_${format(new Date(), "yyyy-MM-dd")}.csv`);
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      const csvContent = csvRows.map((row) => row.join(",")).join("\n");
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      
+      link.setAttribute("href", url);
+      link.setAttribute("download", `sales_report_${format(new Date(), "yyyy-MM-dd")}.csv`);
+      link.style.visibility = "hidden";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
 
-    toast.success("CSV report downloaded successfully!");
+      toast.success("CSV report downloaded successfully!");
+    } catch (error) {
+      console.error("CSV download error:", error);
+      toast.error("Failed to download CSV report");
+    }
   };
 
   return (
@@ -592,15 +625,15 @@ export function ReportGenerator() {
               <div className="grid grid-cols-3 gap-4">
                 <div className="p-4 bg-muted rounded-lg">
                   <p className="text-sm text-muted-foreground">Total Products</p>
-                  <p className="text-2xl font-bold">{reportData.summary.totalProducts}</p>
+                  <p className="text-2xl font-bold">{reportData.summary?.totalProducts || 0}</p>
                 </div>
                 <div className="p-4 bg-muted rounded-lg">
                   <p className="text-sm text-muted-foreground">Total Quantity</p>
-                  <p className="text-2xl font-bold">{reportData.summary.totalQuantity}</p>
+                  <p className="text-2xl font-bold">{reportData.summary?.totalQuantity || 0}</p>
                 </div>
                 <div className="p-4 bg-muted rounded-lg">
                   <p className="text-sm text-muted-foreground">Total Revenue</p>
-                  <p className="text-2xl font-bold">₹{reportData.summary.totalRevenue.toFixed(2)}</p>
+                  <p className="text-2xl font-bold">₹{(reportData.summary?.totalRevenue || 0).toFixed(2)}</p>
                 </div>
               </div>
 
@@ -617,21 +650,29 @@ export function ReportGenerator() {
                     </tr>
                   </thead>
                   <tbody>
-                    {reportData.products.map((item, index) => (
-                      <tr key={index} className="border-t hover:bg-muted/50">
-                        <td className="p-3">
-                          {item.productName}
-                        </td>
-                        <td className="text-right p-3">
-                          {item.variantVolume} {item.unit}
-                        </td>
-                        <td className="text-right p-3">₹{item.price}</td>
-                        <td className="text-right p-3">{item.quantity}</td>
-                        <td className="text-right p-3 font-semibold">
-                          ₹{item.totalAmount.toFixed(2)}
+                    {reportData.products && reportData.products.length > 0 ? (
+                      reportData.products.map((item, index) => (
+                        <tr key={index} className="border-t hover:bg-muted/50">
+                          <td className="p-3">
+                            {item.productName || "N/A"}
+                          </td>
+                          <td className="text-right p-3">
+                            {item.variantVolume || 0} {item.unit || ""}
+                          </td>
+                          <td className="text-right p-3">₹{item.price || 0}</td>
+                          <td className="text-right p-3">{item.quantity || 0}</td>
+                          <td className="text-right p-3 font-semibold">
+                            ₹{(item.totalAmount || 0).toFixed(2)}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={5} className="text-center p-8 text-muted-foreground">
+                          No products found in this period
                         </td>
                       </tr>
-                    ))}
+                    )}
                   </tbody>
                 </table>
               </div>

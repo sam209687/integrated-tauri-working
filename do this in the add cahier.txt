@@ -1,206 +1,142 @@
-./src/actions/offer-detection.action.ts
-45:33  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+In the Report Generate page  Print pdf is not showing the data and download csv also do nothing
 
-./src/actions/offer.actions.ts
-6:17  Error: 'IOffer' is defined but never used.  @typescript-eslint/no-unused-vars
+In the same page want to add one more function "Retail Business Data"
+what it should have to don if should have all the menus Today's sales, Last 7 days  this month and custom range as generate report does had 
+It should get the purchase price field data for the variant component and selling price filed 
+It should generate the report as below:-
+You purchase the tomato for Rupees (Purchase price) and sold for (selling price) your net profit on Tomato selling is Selling price - Purchase price - as per the filter range
+The above should be printed in pdf format 
+i am uploading the variant.ts and variant action files if any file required as to upload
 
-./src/actions/pos-offer.actions.ts
-75:38  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-139:64  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-187:58  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-232:46  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-277:46  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+```typescript
+// src/lib/models/variant.ts
+import mongoose, { Schema, Document, Types } from "mongoose";
+import { IPopulatedProduct } from "./product";
+import { IUnit } from "./unit";
 
-./src/actions/printInvoice.ts
-11:16  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-12:17  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-180:41  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-180:53  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-271:38  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-310:73  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-320:39  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+import "./product";
+import "./unit";
 
-./src/actions/store.actions.ts
-67:22  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-113:19  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-149:23  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-214:19  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-236:19  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-255:19  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-299:19  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+export interface IVariant extends Document {
+  _id: string;
+  product: Types.ObjectId;
 
-./src/actions/testPrinter.action.ts
-10:18  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-24:46  Error: 'stderr' is defined but never used.  @typescript-eslint/no-unused-vars
-33:14  Error: 'err' is defined but never used.  @typescript-eslint/no-unused-vars
-74:57  Error: 'stdout' is defined but never used.  @typescript-eslint/no-unused-vars
-74:65  Error: 'stderr' is defined but never used.  @typescript-eslint/no-unused-vars
-135:53  Error: 'stdout' is defined but never used.  @typescript-eslint/no-unused-vars
-135:61  Error: 'stderr' is defined but never used.  @typescript-eslint/no-unused-vars
+  variantVolume: number;
+  unit: Types.ObjectId;
 
-./src/app/(admin)/admin/offers/page.tsx
-11:9  Error: Do not use an `<a>` element to navigate to `/admin/offers/new/`. Use `<Link />` from `next/link` instead. See: https://nextjs.org/docs/messages/no-html-link-for-pages  @next/next/no-html-link-for-pages
+  purchasePrice: number;
+  sellingPrice: number;
+  mrp?: number;
+  discount?: number;
 
-./src/app/(admin)/admin/printer-settings/page.tsx
-42:6  Warning: React Hook useEffect has a missing dependency: 'detectPrinters'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
-53:9  Error: Use "@ts-expect-error" instead of "@ts-ignore", as "@ts-ignore" will do nothing if the following line is error-free.  @typescript-eslint/ban-ts-comment
-55:34  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-402:45  Error: `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`.  react/no-unescaped-entities
-403:27  Error: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
-403:35  Error: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
-405:27  Error: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
-405:38  Error: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
+  stockQuantity: number;
+  stockAlertQuantity: number;
 
-./src/app/api/whatsapp/send-pdf/route.ts
-16:21  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-112:3  Error: 'invoice' is defined but never used.  @typescript-eslint/no-unused-vars
+  variantColor?: string;
+  image?: string;
+  qrCode?: string;
 
-./src/app/not-found.tsx
-174:16  Error: `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`.  react/no-unescaped-entities
+  packingCharges: number;
+  laborCharges: number;
+  electricityCharges: number;
+  others1: number;
+  others2: number;
 
-./src/app/test-printer/page.tsx
-8:50  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-10:46  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-78:65  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-151:42  Error: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
-151:59  Error: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
-152:53  Error: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
-152:68  Error: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
+  createdAt: Date;
+  updatedAt: Date;
+}
 
-./src/components/admin/AddCashierForm.tsx
-18:16  Error: 'Mail' is defined but never used.  @typescript-eslint/no-unused-vars
-18:22  Error: 'Phone' is defined but never used.  @typescript-eslint/no-unused-vars
-18:29  Error: 'CreditCard' is defined but never used.  @typescript-eslint/no-unused-vars
-18:41  Error: 'MapPin' is defined but never used.  @typescript-eslint/no-unused-vars
-18:49  Error: 'Key' is defined but never used.  @typescript-eslint/no-unused-vars
+// Extended interface for POS operations
+export interface IPopulatedVariant
+  extends Omit<IVariant, "product" | "unit"> {
+  product: IPopulatedProduct;
+  unit: IUnit;
+  
+  // POS-specific computed properties
+  price: number;          // Alias for sellingPrice (used in POS)
+  perUnitPrice?: number;  // Price per base unit (for retail billing)
+  quantity?: number;      // Quantity in cart (runtime only)
+  type?: string;          // Item type: "variant" | "oec" (runtime only)
+  
+  // Retail billing metadata (runtime only)
+  retailBillingData?: {
+    originalQuantity: number;
+    displayQuantity: string;
+    perUnitPrice: number;
+  };
+}
 
-./src/components/admin/AdminSidebarContent.tsx
-29:3  Error: 'ChevronRight' is defined but never used.  @typescript-eslint/no-unused-vars
+const VariantSchema = new Schema<IVariant>(
+  {
+    product: {
+      type: Schema.Types.ObjectId,
+      ref: "Product",
+      required: true,
+      index: true,
+    },
 
-./src/components/adminPanel/Calendar.tsx
-43:10  Error: 'hoveredDate' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+    variantVolume: {
+      type: Number,
+      required: true,
+    },
+    unit: {
+      type: Schema.Types.ObjectId,
+      ref: "Unit",
+      required: true,
+    },
 
-./src/components/adminPanel/PackingMaterialAlertCard.tsx
-29:6  Warning: React Hook useEffect has missing dependencies: 'fetchLowStockMaterials' and 'lastFetched'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+    purchasePrice: {
+      type: Number,
+      required: true,
+    },
+    sellingPrice: {
+      type: Number,
+      required: true,
+    },
+    mrp: Number,
+    discount: Number,
 
-./src/components/adminPanel/SaleOverviewChart.tsx
-5:60  Error: 'DialogTrigger' is defined but never used.  @typescript-eslint/no-unused-vars
-7:52  Error: 'Legend' is defined but never used.  @typescript-eslint/no-unused-vars
-58:37  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-59:75  Error: 'payload' is assigned a value but never used.  @typescript-eslint/no-unused-vars
-88:47  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-116:32  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-120:30  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-222:66  Error: 'index' is defined but never used.  @typescript-eslint/no-unused-vars
+    stockQuantity: {
+      type: Number,
+      required: true,
+    },
+    stockAlertQuantity: {
+      type: Number,
+      required: true,
+    },
 
-./src/components/adminPanel/SalesTrackingMetrics.tsx
-7:18  Error: 'AnimatePresence' is defined but never used.  @typescript-eslint/no-unused-vars
-8:60  Error: 'DialogTrigger' is defined but never used.  @typescript-eslint/no-unused-vars
+    variantColor: String,
+    image: String,
+    qrCode: String,
 
-./src/components/forms/EditOfferForm.tsx
-33:44  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-36:29  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-39:21  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-50:28  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-53:28  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-56:28  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-59:28  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-62:21  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-94:25  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-97:25  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-100:25  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-103:25  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-106:25  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-109:25  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-126:65  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-129:65  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-132:64  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-135:64  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-169:24  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-216:24  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-230:24  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-244:24  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-258:24  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-272:24  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-286:25  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-286:56  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+    packingCharges: { type: Number, default: 0 },
+    laborCharges: { type: Number, default: 0 },
+    electricityCharges: { type: Number, default: 0 },
+    others1: { type: Number, default: 0 },
+    others2: { type: Number, default: 0 },
+  },
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+  }
+);
 
-./src/components/forms/OfferForm.tsx
-41:44  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+// Virtual field: price (alias for sellingPrice)
+VariantSchema.virtual('price').get(function() {
+  return this.sellingPrice;
+});
 
-./src/components/messages/MessageBubble.tsx
-7:16  Error: 'Check' is defined but never used.  @typescript-eslint/no-unused-vars
+// Virtual field: perUnitPrice (calculated based on variant volume)
+VariantSchema.virtual('perUnitPrice').get(function() {
+  if (this.variantVolume && this.variantVolume > 0) {
+    return this.sellingPrice / this.variantVolume;
+  }
+  return undefined;
+});
 
-./src/components/offers/EligibleEntriesList.tsx
-17:17  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-77:48  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-114:50  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+const Variant =
+  mongoose.models.Variant ||
+  mongoose.model<IVariant>("Variant", VariantSchema);
 
-./src/components/offers/OfferDetails.tsx
-14:3  Error: 'IFestivalHitCounterOffer' is defined but never used.  @typescript-eslint/no-unused-vars
-15:3  Error: 'IFestivalAmountOffer' is defined but never used.  @typescript-eslint/no-unused-vars
-16:3  Error: 'IRegularVisitCountOffer' is defined but never used.  @typescript-eslint/no-unused-vars
-17:3  Error: 'IRegularPurchaseAmountOffer' is defined but never used.  @typescript-eslint/no-unused-vars
-18:3  Error: 'IPrize' is defined but never used.  @typescript-eslint/no-unused-vars
-26:36  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-
-./src/components/offers/OffersList.tsx
-111:48  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-
-./src/components/offers/UploadPrize.tsx
-28:3  Error: 'prizeImage' is defined but never used.  @typescript-eslint/no-unused-vars
-
-./src/components/offers/WinnersSelection.tsx
-39:41  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-135:43  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-175:25  Error: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
-175:40  Error: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
-
-./src/components/pos/BillingSection.tsx
-266:50  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-277:29  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-278:29  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-295:30  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-296:31  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-297:40  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-298:40  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-341:24  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-346:56  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-347:30  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-
-./src/components/pos/BillingSectionSecond.tsx
-33:12  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-68:18  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-91:3  Error: 'totalPayable' is defined but never used.  @typescript-eslint/no-unused-vars
-93:3  Error: 'debouncedChangeAmount' is defined but never used.  @typescript-eslint/no-unused-vars
-104:3  Error: 'fetchSuggestions' is defined but never used.  @typescript-eslint/no-unused-vars
-105:3  Error: 'clearSuggestions' is defined but never used.  @typescript-eslint/no-unused-vars
-
-./src/components/pos/LiveCart.tsx
-37:45  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-38:41  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-
-./src/components/pos/PrintPreview.tsx
-13:18  Error: 'Gift' is defined but never used.  @typescript-eslint/no-unused-vars
-88:6  Warning: React Hook useEffect has a missing dependency: 'handlePrint'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
-264:49  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-299:50  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-
-./src/components/pos/RetailBilling.tsx
-38:9  Error: 'filtered' is never reassigned. Use 'const' instead.  prefer-const
-
-./src/components/pos/Searchbar.tsx
-33:10  Error: 'scannedBuffer' is assigned a value but never used.  @typescript-eslint/no-unused-vars
-
-./src/lib/directUSBPrint.ts
-64:24  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-
-./src/lib/telegram/sendPdfToTelegram.ts
-87:14  Error: 'parseError' is defined but never used.  @typescript-eslint/no-unused-vars
-
-./src/lib/whatsapp/sendPdfToWhatsApp.ts
-82:14  Error: 'parseError' is defined but never used.  @typescript-eslint/no-unused-vars
-
-./src/scripts/testPrinterCut.ts
-62:13  Error: 'GS' is assigned a value but never used.  @typescript-eslint/no-unused-vars
-90:63  Error: 'stderr' is defined but never used.  @typescript-eslint/no-unused-vars
+export default Variant;
