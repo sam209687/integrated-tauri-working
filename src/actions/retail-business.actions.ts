@@ -2,12 +2,9 @@
 "use server";
 
 import { connectToDatabase } from "@/lib/db";
-import Variant from "@/lib/models/variant";
 import Invoice from "@/lib/models/invoice";
-
-/* ------------------------------------------------------------------ */
-/* TYPES */
-/* ------------------------------------------------------------------ */
+import Category from "@/lib/models/category";
+import { startOfDay, endOfDay, subDays, startOfMonth, endOfMonth } from "date-fns";
 
 export interface RetailBusinessData {
   productName: string;
@@ -23,178 +20,164 @@ export interface RetailBusinessData {
 }
 
 interface DateRange {
-  startDate: Date;
-  endDate: Date;
+  start: Date;
+  end: Date;
 }
 
-/* ------------------------------------------------------------------ */
-/* HELPER FUNCTIONS */
-/* ------------------------------------------------------------------ */
+/**
+ * Get retail categories (excluding Edible Oil)
+ */
+async function getRetailCategories(): Promise<string[]> {
+  try {
+    const edibleOilCategory = await Category.findOne({
+      name: { $regex: /edible.*oil/i }
+    });
 
-function getDateRange(filter: string, customRange?: { start: Date; end: Date }): DateRange {
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const categories = await Category.find({
+      _id: { $ne: edibleOilCategory?._id }
+    }).select('_id').lean();
 
-  switch (filter) {
-    case "today":
-      return {
-        startDate: today,
-        endDate: new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1),
-      };
-
-    case "last7days":
-      const last7Days = new Date(today);
-      last7Days.setDate(last7Days.getDate() - 7);
-      return {
-        startDate: last7Days,
-        endDate: now,
-      };
-
-    case "thisMonth":
-      const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      return {
-        startDate: firstDayOfMonth,
-        endDate: now,
-      };
-
-    case "custom":
-      if (!customRange) {
-        throw new Error("Custom range requires start and end dates");
-      }
-      return {
-        startDate: customRange.start,
-        endDate: customRange.end,
-      };
-
-    default:
-      return {
-        startDate: today,
-        endDate: now,
-      };
+    return categories.map((c: any) => c._id.toString());
+  } catch (error) {
+    console.error("Error getting retail categories:", error);
+    return [];
   }
 }
 
-function toPlainObject<T>(data: T): T {
-  return JSON.parse(JSON.stringify(data));
-}
-
-/* ------------------------------------------------------------------ */
-/* GET RETAIL BUSINESS DATA */
-/* ------------------------------------------------------------------ */
-
-export const getRetailBusinessData = async (
+export async function getRetailBusinessData(
   filter: "today" | "last7days" | "thisMonth" | "custom",
-  customRange?: { start: Date; end: Date }
-) => {
+  customRange?: DateRange
+) {
   try {
     await connectToDatabase();
 
-    const { startDate, endDate } = getDateRange(filter, customRange);
+    let startDate: Date;
+    let endDate: Date;
 
-    // Fetch all active invoices within the date range
+    // Determine date range
+    switch (filter) {
+      case "today":
+        startDate = startOfDay(new Date());
+        endDate = endOfDay(new Date());
+        break;
+      case "last7days":
+        startDate = startOfDay(subDays(new Date(), 7));
+        endDate = endOfDay(new Date());
+        break;
+      case "thisMonth":
+        startDate = startOfMonth(new Date());
+        endDate = endOfMonth(new Date());
+        break;
+      case "custom":
+        if (!customRange) {
+          throw new Error("Custom range required");
+        }
+        startDate = startOfDay(customRange.start);
+        endDate = endOfDay(customRange.end);
+        break;
+      default:
+        startDate = startOfDay(new Date());
+        endDate = endOfDay(new Date());
+    }
+
+    // Get retail category IDs (excluding edible oil)
+    const retailCategoryIds = await getRetailCategories();
+
+    // Fetch invoices in date range
     const invoices = await Invoice.find({
       createdAt: { $gte: startDate, $lte: endDate },
-      status: "active", // Only active invoices (exclude cancelled)
-    })
-      .select("items")
-      .lean();
-
-    // Get all unique variant IDs from invoices
-    const variantIds = new Set<string>();
-    invoices.forEach((invoice: any) => {
-      invoice.items?.forEach((item: any) => {
-        if (item.variantId) {
-          variantIds.add(item.variantId.toString());
-        }
-      });
-    });
-
-    // Fetch all variants with their details
-    const variants = await Variant.find({
-      _id: { $in: Array.from(variantIds) },
+      type: "retail",
+      paymentStatus: { $in: ["paid", "partial"] }
     })
       .populate({
-        path: "product",
-        select: "productName productCode",
-      })
-      .populate({
-        path: "unit",
-        select: "name",
+        path: "items.variant",
+        populate: [
+          {
+            path: "product",
+            populate: {
+              path: "category",
+              select: "name _id"
+            }
+          },
+          {
+            path: "unit"
+          }
+        ]
       })
       .lean();
 
-    // Create a map for quick variant lookup
-    const variantMap = new Map(
-      variants.map((v: any) => [v._id.toString(), v])
-    );
-
-    // Aggregate sales data by variant
-    const variantSalesMap = new Map<string, {
-      variant: any;
+    // Aggregate data by variant
+    const variantMap = new Map<string, {
+      productName: string;
+      categoryId: string;
+      variantVolume: number;
+      unit: string;
+      purchasePrice: number;
+      sellingPrice: number;
       quantitySold: number;
-      totalRevenue: number;
     }>();
 
     invoices.forEach((invoice: any) => {
       invoice.items?.forEach((item: any) => {
-        if (!item.variantId) return;
+        if (!item.variant?.product) return;
 
-        const variantId = item.variantId.toString();
-        const variant = variantMap.get(variantId);
-        
-        if (!variant) return;
+        const variant = item.variant;
+        const product = variant.product;
+        const categoryId = product.category?._id?.toString() || "";
 
-        const existing = variantSalesMap.get(variantId);
+        // Skip if not in retail categories
+        if (!retailCategoryIds.includes(categoryId)) {
+          return;
+        }
 
-        if (existing) {
-          existing.quantitySold += item.quantity || 0;
-          existing.totalRevenue += (item.price || 0) * (item.quantity || 0);
-        } else {
-          variantSalesMap.set(variantId, {
-            variant,
-            quantitySold: item.quantity || 0,
-            totalRevenue: (item.price || 0) * (item.quantity || 0),
+        const variantKey = variant._id.toString();
+
+        if (!variantMap.has(variantKey)) {
+          variantMap.set(variantKey, {
+            productName: product.name || product.productName,
+            categoryId,
+            variantVolume: variant.variantVolume || 1,
+            unit: variant.unit?.name || "unit",
+            purchasePrice: variant.purchasePrice || 0,
+            sellingPrice: variant.sellingPrice || 0,
+            quantitySold: 0
           });
         }
+
+        const variantData = variantMap.get(variantKey)!;
+        variantData.quantitySold += item.quantity || 0;
       });
     });
 
-    // Build the retail business data array
-    const businessData: RetailBusinessData[] = [];
-
-    variantSalesMap.forEach((salesData) => {
-      const variant = salesData.variant;
-      const purchasePrice = variant.purchasePrice || 0;
-      const sellingPrice = variant.sellingPrice || 0;
-      const quantitySold = salesData.quantitySold;
-      const totalRevenue = salesData.totalRevenue;
-      const totalPurchaseCost = purchasePrice * quantitySold;
+    // Calculate business metrics
+    const businessData: RetailBusinessData[] = Array.from(variantMap.values()).map(data => {
+      const totalPurchaseCost = data.purchasePrice * data.quantitySold;
+      const totalRevenue = data.sellingPrice * data.quantitySold;
       const netProfit = totalRevenue - totalPurchaseCost;
-      const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
+      const profitMargin = totalPurchaseCost > 0 
+        ? (netProfit / totalPurchaseCost) * 100 
+        : 0;
 
-      businessData.push({
-        productName: variant.product?.productName || "Unknown Product",
-        variantVolume: variant.variantVolume || 0,
-        unit: variant.unit?.name || "Unit",
-        purchasePrice,
-        sellingPrice,
-        quantitySold,
+      return {
+        productName: data.productName,
+        variantVolume: data.variantVolume,
+        unit: data.unit,
+        purchasePrice: data.purchasePrice,
+        sellingPrice: data.sellingPrice,
+        quantitySold: data.quantitySold,
         totalPurchaseCost,
         totalRevenue,
         netProfit,
-        profitMargin,
-      });
+        profitMargin
+      };
     });
-
-    // Sort by net profit (descending)
-    businessData.sort((a, b) => b.netProfit - a.netProfit);
 
     // Calculate totals
     const totals = businessData.reduce(
       (acc, item) => ({
         totalPurchaseCost: acc.totalPurchaseCost + item.totalPurchaseCost,
         totalRevenue: acc.totalRevenue + item.totalRevenue,
-        netProfit: acc.netProfit + item.netProfit,
+        netProfit: acc.netProfit + item.netProfit
       }),
       { totalPurchaseCost: 0, totalRevenue: 0, netProfit: 0 }
     );
@@ -202,19 +185,20 @@ export const getRetailBusinessData = async (
     return {
       success: true,
       data: {
-        items: toPlainObject(businessData),
-        totals: toPlainObject(totals),
+        items: businessData.sort((a, b) => b.netProfit - a.netProfit),
+        totals,
         dateRange: {
           start: startDate.toISOString(),
-          end: endDate.toISOString(),
-        },
-      },
+          end: endDate.toISOString()
+        }
+      }
     };
   } catch (error) {
-    console.error("❌ Failed to fetch retail business data:", error);
+    console.error("Error fetching retail business data:", error);
     return {
       success: false,
-      message: "Failed to fetch retail business data.",
+      message: error instanceof Error ? error.message : "Failed to fetch data",
+      data: null
     };
   }
-};
+}

@@ -18,6 +18,11 @@ export interface IVariant extends Document {
   mrp?: number;
   discount?: number;
 
+  // ✅ NEW: Purchase tracking fields
+  lastPurchaseDate?: Date;
+  nextPurchaseDate?: Date;
+  purchaseFrequency?: 'daily' | 'weekly' | 'monthly'; // Helper field for UI
+
   stockQuantity: number;
   stockAlertQuantity: number;
 
@@ -85,6 +90,21 @@ const VariantSchema = new Schema<IVariant>(
     mrp: Number,
     discount: Number,
 
+    // ✅ NEW: Purchase tracking fields
+    lastPurchaseDate: {
+      type: Date,
+      default: null,
+    },
+    nextPurchaseDate: {
+      type: Date,
+      default: null,
+    },
+    purchaseFrequency: {
+      type: String,
+      enum: ['daily', 'weekly', 'monthly'],
+      default: null,
+    },
+
     stockQuantity: {
       type: Number,
       required: true,
@@ -122,6 +142,19 @@ VariantSchema.virtual('perUnitPrice').get(function() {
     return this.sellingPrice / this.variantVolume;
   }
   return undefined;
+});
+
+// ✅ NEW: Virtual field to check if purchase is overdue
+VariantSchema.virtual('isPurchaseOverdue').get(function() {
+  if (!this.nextPurchaseDate) return false;
+  return new Date() > this.nextPurchaseDate;
+});
+
+// ✅ NEW: Virtual field to get days until next purchase
+VariantSchema.virtual('daysUntilPurchase').get(function() {
+  if (!this.nextPurchaseDate) return null;
+  const diff = this.nextPurchaseDate.getTime() - new Date().getTime();
+  return Math.ceil(diff / (1000 * 60 * 60 * 24));
 });
 
 const Variant =

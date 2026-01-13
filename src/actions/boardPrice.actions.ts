@@ -2,94 +2,140 @@
 "use server";
 
 import { connectToDatabase } from "@/lib/db";
+import Variant from "@/lib/models/variant";
 import Product from "@/lib/models/product";
+import Category from "@/lib/models/category";
+import { revalidatePath } from "next/cache";
 
 export interface BoardPriceItem {
   _id: string;
-  productCode: string;
   productName: string;
-  category: {
-    _id: string;
-    name: string;
-  };
-  brand?: {
-    _id: string;
-    name: string;
-  };
-  sellingPrice?: number; // Optional since products don't have this
-  baseUnit: {
-    _id: string;
-    name: string;
-  };
+  categoryName?: string;
+  productCode: string;
+  baseUnit: { _id: string; name: string } | null;
+  sellingPrice: number;
 }
 
+/**
+ * ✅ NEW: Get edible oil category ID
+ */
+async function getEdibleOilCategoryId(): Promise<string | null> {
+  try {
+    const edibleOilCategory = await Category.findOne({
+      name: { $regex: /edible.*oil/i }
+    });
+    return edibleOilCategory?._id.toString() || null;
+  } catch (error) {
+    console.error("❌ Error getting edible oil category:", error);
+    return null;
+  }
+}
+
+/**
+ * Get board price products (ONLY Edible Oils - Sesame, Groundnut, etc.)
+ */
 export async function getBoardPriceProducts() {
   try {
     await connectToDatabase();
 
-    const products = await Product.find({})
-      .populate("category", "name")
-      .populate("brand", "name")
-      .populate("baseUnit", "name")
-      .select("productCode productName category brand baseUnit")
+    // ✅ Get edible oil category
+    const edibleOilCategoryId = await getEdibleOilCategoryId();
+
+    if (!edibleOilCategoryId) {
+      return {
+        success: true,
+        data: [],
+        totalCount: 0,
+        message: "No edible oil category found"
+      };
+    }
+
+    // ✅ Get only edible oil products
+    const edibleOilProducts = await Product.find({
+      category: edibleOilCategoryId
+    })
+      .populate('category baseUnit')
       .lean();
 
-    const data: BoardPriceItem[] = products.map((product: any) => ({
-      _id: product._id.toString(),
-      productCode: product.productCode || "N/A",
-      productName: product.productName,
-      category: {
-        _id: product.category?._id?.toString() || "",
-        name: product.category?.name || "Uncategorized",
-      },
-      brand: product.brand ? {
-        _id: product.brand._id?.toString() || "",
-        name: product.brand.name || "",
-      } : undefined,
-      sellingPrice: undefined, // Products don't have direct selling price, variants do
-      baseUnit: {
-        _id: product.baseUnit?._id?.toString() || "",
-        name: product.baseUnit?.name || "Unit",
-      },
+    if (edibleOilProducts.length === 0) {
+      return {
+        success: true,
+        data: [],
+        totalCount: 0,
+        message: "No edible oil products found"
+      };
+    }
+
+    const productIds = edibleOilProducts.map(p => (p._id as any).toString());
+
+    // Get variants for edible oil products only
+    const variants = await Variant.find({
+      product: { $in: productIds }
+    })
+      .populate({
+        path: 'product',
+        populate: { path: 'category baseUnit' }
+      })
+      .lean();
+
+    const boardPriceItems: BoardPriceItem[] = variants.map((variant: any) => ({
+      _id: variant._id.toString(),
+      productName: variant.product?.productName || 'Unknown',
+      categoryName: variant.product?.category?.name || 'Unknown',
+      productCode: variant.product?.productCode || 'N/A',
+      baseUnit: variant.product?.baseUnit ? {
+        _id: variant.product.baseUnit._id.toString(),
+        name: variant.product.baseUnit.name
+      } : null,
+      sellingPrice: variant.sellingPrice,
     }));
 
     return {
       success: true,
-      data,
-      totalCount: data.length,
-      message: "Products fetched successfully",
+      data: JSON.parse(JSON.stringify(boardPriceItems)),
+      totalCount: boardPriceItems.length
     };
   } catch (error) {
-    console.error("Error fetching board price products:", error);
+    console.error("❌ Error fetching board prices:", error);
     return {
       success: false,
+      message: "Failed to fetch board prices",
       data: [],
-      totalCount: 0,
-      message: "Failed to fetch products",
+      totalCount: 0
     };
   }
 }
 
-export async function updateProductSellingPrice(productId: string, newPrice: number) {
+/**
+ * Update product selling price
+ */
+export async function updateProductSellingPrice(variantId: string, newSellingPrice: number) {
   try {
     await connectToDatabase();
 
-    // Note: Products don't have sellingPrice, variants do
-    // This function might need to be updated to work with variants instead
-    // Or you might want to update all variants of this product
-
-    // For now, just return success
-    // You'll need to implement the actual logic based on your requirements
+    const variant = await Variant.findById(variantId);
     
+    if (!variant) {
+      return {
+        success: false,
+        message: "Product variant not found"
+      };
+    }
+
+    variant.sellingPrice = newSellingPrice;
+    await variant.save();
+
+    revalidatePath("/admin/dashboard");
+
     return {
       success: true,
-      message: "Price updated successfully",
+      message: "Selling price updated successfully"
     };
   } catch (error) {
-    console.error("Error updating product price:", error);
+    console.error("❌ Error updating selling price:", error);
     return {
       success: false,
-      message: "Failed to update price",
+      message: "Failed to update selling price"
     };
   }
 }

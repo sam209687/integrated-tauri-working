@@ -1,3 +1,4 @@
+// src/components/adminPanel/retailCards/RetailSalesOverviewChart.tsx
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,7 +8,7 @@ import { useState, useMemo, useCallback, memo } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Sector } from 'recharts';
 import { TrendingUp, Package, X, Maximize2 } from 'lucide-react';
 
-interface SalesOverviewChartProps {
+interface RetailSalesOverviewChartProps {
   data: {
     productName: string;
     totalSales: number;
@@ -15,19 +16,11 @@ interface SalesOverviewChartProps {
   }[];
 }
 
-// Enhanced color palette for better visibility
 const ENHANCED_COLORS = [
-  '#10b981', // Emerald
-  '#3b82f6', // Blue
-  '#8b5cf6', // Violet
-  '#f59e0b', // Amber
-  '#ec4899', // Pink
-  '#06b6d4', // Cyan
-  '#f97316', // Orange
-  '#6366f1', // Indigo
+  '#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', 
+  '#ec4899', '#06b6d4', '#f97316', '#6366f1',
 ];
 
-// ✅ FIX: Memoize the chart component to prevent re-renders
 const MemoizedPieChart = memo(({ 
   dataWithPercentage, 
   isEnlarged, 
@@ -57,10 +50,7 @@ const MemoizedPieChart = memo(({
           isAnimationActive={false}
         >
           {dataWithPercentage.map((entry: any, index: number) => (
-            <Cell 
-              key={`cell-${index}`} 
-              fill={entry.fill}
-            />
+            <Cell key={`cell-${index}`} fill={entry.fill} />
           ))}
         </Pie>
         <Tooltip content={<CustomTooltip />} />
@@ -71,26 +61,22 @@ const MemoizedPieChart = memo(({
 
 MemoizedPieChart.displayName = 'MemoizedPieChart';
 
-export function SalesOverviewChart({ data }: SalesOverviewChartProps) {
+export function RetailSalesOverviewChart({ data }: RetailSalesOverviewChartProps) {
   const [isEnlarged, setIsEnlarged] = useState(false);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
-  // Filter out any data related to "Oil Expelling"
   const filteredData = useMemo(() => {
-    return data.filter(item => !item.productName.includes("Oil Expelling"))
-      .map((item, index) => ({
-        ...item,
-        fill: ENHANCED_COLORS[index % ENHANCED_COLORS.length]
-      }));
+    return data.map((item, index) => ({
+      ...item,
+      fill: ENHANCED_COLORS[index % ENHANCED_COLORS.length]
+    }));
   }, [data]);
 
-  // Calculate total invoice count
   const totalInvoiceCount = useMemo(() => {
     return filteredData.reduce((sum, item) => sum + item.totalSales, 0);
   }, [filteredData]);
 
-  // Calculate percentage for each item
   const dataWithPercentage = useMemo(() => {
     return filteredData.map(item => ({
       ...item,
@@ -98,7 +84,6 @@ export function SalesOverviewChart({ data }: SalesOverviewChartProps) {
     }));
   }, [filteredData, totalInvoiceCount]);
 
-  // ✅ FIX: Memoize mouse handlers to prevent re-renders
   const handlePieMouseEnter = useCallback((_: any, index: number) => {
     setActiveIndex(index);
   }, []);
@@ -115,7 +100,6 @@ export function SalesOverviewChart({ data }: SalesOverviewChartProps) {
     setHoveredIndex(null);
   }, []);
 
-  // ✅ FIX: Memoize renderActiveShape to prevent recreating on each render
   const renderActiveShape = useCallback((props: any) => {
     const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill } = props;
     
@@ -144,7 +128,6 @@ export function SalesOverviewChart({ data }: SalesOverviewChartProps) {
     );
   }, []);
 
-  // Render legend with enhanced styling
   const renderLegend = useCallback((payload: any[]) => {
     return (
       <div className="grid grid-cols-1 gap-2 mt-4">
@@ -197,7 +180,6 @@ export function SalesOverviewChart({ data }: SalesOverviewChartProps) {
           renderActiveShape={renderActiveShape}
         />
 
-        {/* Center Label */}
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
           <div className="mb-1">
             <Package className="h-8 w-8 mx-auto dark:text-white text-gray-900" />
@@ -206,12 +188,11 @@ export function SalesOverviewChart({ data }: SalesOverviewChartProps) {
             {totalInvoiceCount.toLocaleString()}
           </div>
           <div className="text-xs dark:text-gray-400 text-gray-500 uppercase tracking-wider">
-            Total Items
+            Retail Items
           </div>
         </div>
       </div>
 
-      {/* Legend Section */}
       {isEnlarged && (
         <div className="lg:w-1/3 w-full max-h-96 overflow-y-auto custom-scrollbar">
           {renderLegend(dataWithPercentage.map((item) => ({
@@ -239,10 +220,10 @@ export function SalesOverviewChart({ data }: SalesOverviewChartProps) {
                 <div className="flex items-center gap-2">
                   <TrendingUp className="h-5 w-5 text-purple-500" />
                   <CardTitle className="text-xl font-bold dark:text-white text-gray-900">
-                    Total Items Sold
+                    Retail Items Sold
                   </CardTitle>
                 </div>
-                <p className="text-sm dark:text-gray-400 text-gray-500 mt-1">Last 7 days</p>
+                <p className="text-sm dark:text-gray-400 text-gray-500 mt-1">Excluding edible oils</p>
               </div>
               
               <button
@@ -258,7 +239,6 @@ export function SalesOverviewChart({ data }: SalesOverviewChartProps) {
                 <div>
                   <ChartContent isEnlarged={false} />
                   
-                  {/* Quick Stats Below Chart */}
                   <div className="mt-6 grid grid-cols-3 gap-4">
                     <div className="text-center p-3 rounded-xl dark:bg-white/5 bg-gray-50">
                       <div className="text-2xl font-bold dark:text-white text-gray-900">
@@ -283,9 +263,9 @@ export function SalesOverviewChart({ data }: SalesOverviewChartProps) {
               ) : (
                 <div className="flex flex-col items-center justify-center h-64 text-center">
                   <Package className="h-16 w-16 dark:text-gray-600 text-gray-300 mb-4" />
-                  <p className="text-lg font-medium dark:text-gray-400 text-gray-500">No data to display</p>
+                  <p className="text-lg font-medium dark:text-gray-400 text-gray-500">No retail data</p>
                   <p className="text-sm dark:text-gray-500 text-gray-400 mt-2">
-                    Sales data will appear here once available
+                    Retail sales data will appear here
                   </p>
                 </div>
               )}
@@ -294,7 +274,6 @@ export function SalesOverviewChart({ data }: SalesOverviewChartProps) {
         </Card>
       </motion.div>
 
-      {/* Enlarged Dialog */}
       <AnimatePresence>
         {isEnlarged && (
           <Dialog open={isEnlarged} onOpenChange={setIsEnlarged}>
@@ -308,10 +287,10 @@ export function SalesOverviewChart({ data }: SalesOverviewChartProps) {
 
               <DialogHeader>
                 <DialogTitle className="text-2xl font-bold dark:text-white text-gray-900 pr-8">
-                  Sales Overview - Detailed View
+                  Retail Sales - Detailed View
                 </DialogTitle>
                 <p className="text-sm dark:text-gray-400 text-gray-600">
-                  Complete breakdown of sales by product
+                  Complete breakdown of retail product sales
                 </p>
               </DialogHeader>
 
@@ -343,7 +322,6 @@ export function SalesOverviewChart({ data }: SalesOverviewChartProps) {
   );
 }
 
-// Custom tooltip component
 const CustomTooltip = ({ active, payload }: any) => {
   if (active && payload && payload.length) {
     return (

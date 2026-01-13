@@ -12,6 +12,7 @@ interface PrintPayload {
   storeDetails: any;
   qrCodeData?: string | null;
   mediaQrData?: string | null;
+  openCashDrawer?: boolean; // ✅ NEW: Optional flag to control drawer opening
 }
 
 // ESC/POS Commands
@@ -29,23 +30,25 @@ const CMD_DOUBLE_HEIGHT = GS + '!' + '\x01';
 const CMD_NORMAL_SIZE = GS + '!' + '\x00';
 const CMD_NEWLINE = '\n';
 
-// --- IMPROVED CUT COMMAND ---
-// GS V m n : Select cut mode and cut paper
-// m=66 (0x42): Feeds paper to (cutting position + n x vertical motion unit) and cuts.
-// This is safer than the standard cut as it ensures text clears the blade.
+// Cut command
 const CMD_FEED_AND_CUT = Buffer.from([0x1D, 0x56, 0x42, 0x00]); 
+
+// ✅ NEW: Cash Drawer Commands
+// Standard ESC/POS cash drawer kick command
+// ESC p m t1 t2 - where m=0 (pin 2), t1=pulse ON time, t2=pulse OFF time
+// Most common: ESC p 0 25 250 (open drawer on pin 2)
+const CMD_OPEN_DRAWER_PIN2 = Buffer.from([0x1B, 0x70, 0x00, 0x19, 0xFA]); // ESC p 0 25 250
+const CMD_OPEN_DRAWER_PIN5 = Buffer.from([0x1B, 0x70, 0x01, 0x19, 0xFA]); // ESC p 1 25 250 (alternative pin 5)
+
+// Alternative commands for compatibility
+const CMD_OPEN_DRAWER_DLE = Buffer.from([0x10, 0x14, 0x01, 0x00, 0x01]); // DLE DC4 1 0 1
 
 function drawLine(width: number = 48) {
   return '-'.repeat(width) + CMD_NEWLINE;
 }
 
-// ... [Keep your existing image helper functions exactly as they were] ...
-// (I am omitting the body of imageToESCPOS, imageToBitmapData, and combineBitmapsSideBySide 
-//  to save space, but DO NOT DELETE THEM from your file)
-
 async function imageToESCPOS(imageData: string, maxWidth: number = 384): Promise<string> {
-  // ... [Paste your existing imageToESCPOS function body here] ...
-    try {
+  try {
     let imageBuffer: Buffer;
     
     if (imageData.startsWith('data:image')) {
@@ -117,8 +120,7 @@ async function imageToESCPOS(imageData: string, maxWidth: number = 384): Promise
 }
 
 async function imageToBitmapData(imageData: string, maxWidth: number = 192): Promise<{ width: number; height: number; bytesPerLine: number; bitmap: number[] } | null> {
-  // ... [Paste your existing imageToBitmapData function body here] ...
-    try {
+  try {
     let imageBuffer: Buffer;
     
     if (imageData.startsWith('data:image')) {
@@ -178,8 +180,7 @@ async function imageToBitmapData(imageData: string, maxWidth: number = 192): Pro
 }
 
 function combineBitmapsSideBySide(left: any, right: any, spacing: number = 16): string {
-  // ... [Paste your existing combineBitmapsSideBySide function body here] ...
-    const maxHeight = Math.max(left.height, right.height);
+  const maxHeight = Math.max(left.height, right.height);
   const spacingBytes = Math.ceil(spacing / 8);
   const combinedBytesPerLine = left.bytesPerLine + spacingBytes + right.bytesPerLine;
   const combinedBitmap: number[] = [];
@@ -226,14 +227,20 @@ function combineBitmapsSideBySide(left: any, right: any, spacing: number = 16): 
   return cmd;
 }
 
-
 export async function printInvoice(data: PrintPayload) {
-  const { invoiceData, storeDetails, qrCodeData, mediaQrData } = data;
+  const { invoiceData, storeDetails, qrCodeData, mediaQrData, openCashDrawer = true } = data;
 
   try {
     console.log('Building ESC/POS receipt with images...');
     
     let content = '';
+    
+    // ✅ NEW: Open cash drawer FIRST (before any other commands)
+    // This ensures the drawer opens immediately when printing starts
+    if (openCashDrawer) {
+      console.log('Adding cash drawer open command...');
+      // We'll add this as a Buffer later, not to the string content
+    }
     
     // Initialize printer
     content += CMD_INIT;
@@ -331,26 +338,25 @@ export async function printInvoice(data: PrintPayload) {
     // --- QR CODES ---
     content += CMD_ALIGN_CENTER;
     if (qrCodeData && mediaQrData) {
-      // ... (Existing QR logic) ...
-       try {
+      try {
         const invoiceQrBitmap = await imageToBitmapData(qrCodeData, 180);
         const mediaQrBitmap = await imageToBitmapData(mediaQrData, 180);
         if (invoiceQrBitmap && mediaQrBitmap) {
           content += CMD_NEWLINE + combineBitmapsSideBySide(invoiceQrBitmap, mediaQrBitmap, 16);
           content += 'Invoice Details' + '        ' + 'Follow Us!' + CMD_NEWLINE;
         } else {
-             if(invoiceQrBitmap) content += CMD_NEWLINE + await imageToESCPOS(qrCodeData, 200) + 'Scan Invoice' + CMD_NEWLINE;
-             if(mediaQrBitmap) content += CMD_NEWLINE + await imageToESCPOS(mediaQrData, 200) + 'Follow Us' + CMD_NEWLINE;
+          if(invoiceQrBitmap) content += CMD_NEWLINE + await imageToESCPOS(qrCodeData, 200) + 'Scan Invoice' + CMD_NEWLINE;
+          if(mediaQrBitmap) content += CMD_NEWLINE + await imageToESCPOS(mediaQrData, 200) + 'Follow Us' + CMD_NEWLINE;
         }
-      } catch (err) { console.error('QR Print Error', err); }
+      } catch (err) { 
+        console.error('QR Print Error', err); 
+      }
     } else if (qrCodeData) {
-       // ...
-       const cmd = await imageToESCPOS(qrCodeData, 200);
-       if(cmd) content += CMD_NEWLINE + cmd + 'Scan for Details' + CMD_NEWLINE;
+      const cmd = await imageToESCPOS(qrCodeData, 200);
+      if(cmd) content += CMD_NEWLINE + cmd + 'Scan for Details' + CMD_NEWLINE;
     } else if (mediaQrData) {
-        // ...
-        const cmd = await imageToESCPOS(mediaQrData, 200);
-        if(cmd) content += CMD_NEWLINE + cmd + 'Follow us!' + CMD_NEWLINE;
+      const cmd = await imageToESCPOS(mediaQrData, 200);
+      if(cmd) content += CMD_NEWLINE + cmd + 'Follow us!' + CMD_NEWLINE;
     }
     
     // --- FOOTER ---
@@ -359,17 +365,32 @@ export async function printInvoice(data: PrintPayload) {
     content += 'Thank you for your business!' + CMD_NEWLINE;
     content += 'Goods once sold will not be taken back.' + CMD_NEWLINE;
     content += CMD_NEWLINE;
-    content += CMD_NEWLINE; // Few extra lines for padding
+    content += CMD_NEWLINE;
     
-    // --- IMPORTANT: BUILD FINAL BUFFER WITH CUT COMMAND ---
-    console.log('Adding Feed-and-Cut command...');
+    // ✅ BUILD FINAL BUFFER WITH DRAWER COMMAND
+    console.log('Building final print buffer with cash drawer command...');
     
-    // 1. Convert the string content to a binary Buffer
+    // 1. Convert content to Buffer
     const contentBuffer = Buffer.from(content, 'binary');
     
-    // 2. Combine content + Cut Command (GS V 66 0)
-    // This safely appends the binary 0x00 without it being treated as EOF
-    const finalBuffer = Buffer.concat([contentBuffer, CMD_FEED_AND_CUT]);
+    // 2. Build final buffer: Drawer Command + Content + Cut Command
+    let finalBuffer: Buffer;
+    
+    if (openCashDrawer) {
+      // Try multiple drawer commands for maximum compatibility
+      finalBuffer = Buffer.concat([
+        CMD_OPEN_DRAWER_PIN2,  // Primary command (pin 2)
+        CMD_OPEN_DRAWER_PIN5,  // Alternative command (pin 5)
+        contentBuffer,         // Receipt content
+        CMD_FEED_AND_CUT       // Cut paper
+      ]);
+      console.log('✅ Cash drawer commands added to print buffer');
+    } else {
+      finalBuffer = Buffer.concat([
+        contentBuffer,
+        CMD_FEED_AND_CUT
+      ]);
+    }
     
     console.log(`Print buffer built. Size: ${finalBuffer.length} bytes`);
     
@@ -383,7 +404,10 @@ export async function printInvoice(data: PrintPayload) {
     
     if (directResult.success) {
       await fs.unlink(tempFilePath).catch(() => {});
-      return { success: true, message: 'Invoice printed via USB' };
+      return { 
+        success: true, 
+        message: `Invoice printed via USB${openCashDrawer ? ' (Cash drawer opened)' : ''}`
+      };
     }
     
     // Fallback to CUPS Raw
@@ -395,10 +419,52 @@ export async function printInvoice(data: PrintPayload) {
     });
     
     await fs.unlink(tempFilePath).catch(() => {});
-    return { success: true, message: 'Invoice printed via CUPS' };
+    return { 
+      success: true, 
+      message: `Invoice printed via CUPS${openCashDrawer ? ' (Cash drawer opened)' : ''}`
+    };
 
   } catch (error) {
     console.error("Print action failed:", error);
+    return { success: false, error: String(error) };
+  }
+}
+
+// ✅ NEW: Standalone function to test cash drawer opening
+export async function openCashDrawer() {
+  try {
+    console.log('Opening cash drawer...');
+    
+    // Send drawer commands only
+    const drawerBuffer = Buffer.concat([
+      CMD_OPEN_DRAWER_PIN2,
+      CMD_OPEN_DRAWER_PIN5,
+      CMD_OPEN_DRAWER_DLE, // Alternative command for compatibility
+    ]);
+    
+    // Try USB first
+    const directResult = await printDirectToUSB(drawerBuffer);
+    
+    if (directResult.success) {
+      return { success: true, message: 'Cash drawer opened via USB' };
+    }
+    
+    // Fallback to CUPS
+    const tempFilePath = path.join(os.tmpdir(), `drawer-${Date.now()}.bin`);
+    await fs.writeFile(tempFilePath, drawerBuffer);
+    
+    await new Promise((resolve, reject) => {
+      exec(`lp -d RugtekPOS -o raw "${tempFilePath}"`, (error, stdout) => {
+        if (error) reject(error);
+        else resolve(stdout);
+      });
+    });
+    
+    await fs.unlink(tempFilePath).catch(() => {});
+    return { success: true, message: 'Cash drawer opened via CUPS' };
+    
+  } catch (error) {
+    console.error("Failed to open cash drawer:", error);
     return { success: false, error: String(error) };
   }
 }

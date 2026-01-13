@@ -15,7 +15,8 @@ import { DashboardFilter } from "./DashboardFilter";
 import { StockAlertCard } from "./StockAlertCard";
 import { BoardPriceCard } from "./BoardPriceCard"; 
 import { ReportGenerator } from "./dashboard/ReportGenerator";
-import { RetailBusinessReport } from "@/components/reports/retail-business-report"; // ✅ NEW
+import { RetailBusinessReport } from "@/components/reports/retail-business-report";
+// import { RetailSalesContainer } from "../retailCards/RetailSalesContainer"; // ✅ NEW
 
 import { useMonthlySalesStore } from "@/store/monthlySales.store"; 
 import { useCustomerDetailsStore } from "@/store/customerDetails.store"; 
@@ -24,6 +25,7 @@ import { useBoardPriceStore } from "@/store/boardPrice.store";
 import { PackingMaterialAlertCard } from "./PackingMaterialAlertCard";
 import { PermanentCalendarCard } from "./PermanentCalendarCard";
 import { DashboardLoading } from "./DashboardLoading";
+import { RetailSalesContainer } from "./retailCards/RetailSalesContainer";
 
 const DynamicSalesOverviewChart = dynamic(
   () => import("./SaleOverviewChart").then((mod) => mod.SalesOverviewChart),
@@ -152,7 +154,11 @@ export function DashboardPage({ initialData }: DashboardPageProps) {
         </div>
       </div>
 
-      {/* KPI Cards */}
+      {/* ============================================ */}
+      {/* EDIBLE OIL BUSINESS TRACKING */}
+      {/* ============================================ */}
+      
+      {/* KPI Cards - Edible Oil */}
       <SalesTrackingMetrics
         totalRevenue={allMetrics.totalRevenue}
         totalSales={allMetrics.totalSales}
@@ -162,7 +168,7 @@ export function DashboardPage({ initialData }: DashboardPageProps) {
         depositableCharges={allMetrics.depositableCharges}
       />
 
-      {/* Charts + Calendar */}
+      {/* Charts + Calendar - Edible Oil */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="lg:col-span-2">
           <DynamicSalesOverviewChart data={salesData} />
@@ -175,6 +181,19 @@ export function DashboardPage({ initialData }: DashboardPageProps) {
         </div>
       </div>
 
+      {/* ============================================ */}
+      {/* RETAIL BUSINESS TRACKING (NEW) */}
+      {/* ============================================ */}
+      
+      <RetailSalesContainer 
+        fromDate={fromDate} 
+        toDate={toDate} 
+      />
+
+      {/* ============================================ */}
+      {/* GENERAL REPORTS & ANALYTICS */}
+      {/* ============================================ */}
+
       {/* ROW 1: Monthly Sales Chart and Customer Details Table (2 columns) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <MonthlySalesChart data={monthlySales} /> 
@@ -186,7 +205,7 @@ export function DashboardPage({ initialData }: DashboardPageProps) {
         />
       </div>
       
-      {/* ✅ NEW: Retail Business Report (Full Width) */}
+      {/* Retail Business Report (Full Width) */}
       <div className="grid grid-cols-1 gap-4">
         <RetailBusinessReport />
       </div>
