@@ -15,8 +15,7 @@ import { DashboardFilter } from "./DashboardFilter";
 import { StockAlertCard } from "./StockAlertCard";
 import { BoardPriceCard } from "./BoardPriceCard"; 
 import { ReportGenerator } from "./dashboard/ReportGenerator";
-import { RetailBusinessReport } from "@/components/reports/retail-business-report";
-// import { RetailSalesContainer } from "../retailCards/RetailSalesContainer"; // ✅ NEW
+import { RetailSalesContainer } from "./retailCards/RetailSalesContainer";
 
 import { useMonthlySalesStore } from "@/store/monthlySales.store"; 
 import { useCustomerDetailsStore } from "@/store/customerDetails.store"; 
@@ -25,7 +24,6 @@ import { useBoardPriceStore } from "@/store/boardPrice.store";
 import { PackingMaterialAlertCard } from "./PackingMaterialAlertCard";
 import { PermanentCalendarCard } from "./PermanentCalendarCard";
 import { DashboardLoading } from "./DashboardLoading";
-import { RetailSalesContainer } from "./retailCards/RetailSalesContainer";
 
 const DynamicSalesOverviewChart = dynamic(
   () => import("./SaleOverviewChart").then((mod) => mod.SalesOverviewChart),
@@ -168,12 +166,12 @@ export function DashboardPage({ initialData }: DashboardPageProps) {
         depositableCharges={allMetrics.depositableCharges}
       />
 
-      {/* Charts + Calendar - Edible Oil */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="lg:col-span-2">
+      {/* Charts + Calendar - Edible Oil (2 columns) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="h-full">
           <DynamicSalesOverviewChart data={salesData} />
         </div>
-        <div className="lg:col-span-2">
+        <div className="h-full">
           <PermanentCalendarCard
             selectedDate={toDate}
             onDateChange={handleCalendarDateChange}
@@ -182,7 +180,7 @@ export function DashboardPage({ initialData }: DashboardPageProps) {
       </div>
 
       {/* ============================================ */}
-      {/* RETAIL BUSINESS TRACKING (NEW) */}
+      {/* RETAIL BUSINESS TRACKING */}
       {/* ============================================ */}
       
       <RetailSalesContainer 
@@ -194,7 +192,7 @@ export function DashboardPage({ initialData }: DashboardPageProps) {
       {/* GENERAL REPORTS & ANALYTICS */}
       {/* ============================================ */}
 
-      {/* ROW 1: Monthly Sales Chart and Customer Details Table (2 columns) */}
+      {/* Monthly Sales Chart and Customer Details Table (2 columns) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <MonthlySalesChart data={monthlySales} /> 
         
@@ -205,12 +203,7 @@ export function DashboardPage({ initialData }: DashboardPageProps) {
         />
       </div>
       
-      {/* Retail Business Report (Full Width) */}
-      <div className="grid grid-cols-1 gap-4">
-        <RetailBusinessReport />
-      </div>
-      
-      {/* Stock and Packing Material Alert Cards (2 equal columns) */}
+      {/* Stock and Packing Material Alert Cards (2 columns) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Stock Alert Card (takes 1/2 width on large screens) */}
         <StockAlertCard
@@ -222,7 +215,7 @@ export function DashboardPage({ initialData }: DashboardPageProps) {
         <PackingMaterialAlertCard />
       </div>
 
-      {/* ROW 3: Board Price Card (1 column, full width) */}
+      {/* Board Price Card (Full width) */}
       <div className="grid grid-cols-1 gap-4">
         <BoardPriceCard
             data={boardPriceProducts}

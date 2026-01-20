@@ -27,11 +27,7 @@ import {
   AlertCircle,
   Save,
   Download,
-  CalendarIcon,
-  Plus,
-  Minus,
-  ChevronUp,
-  ChevronDown
+  CalendarIcon
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
@@ -129,20 +125,6 @@ export function RetailSalesModal({ isOpen, onClose }: RetailSalesModalProps) {
     setStockUpdates(prev => ({
       ...prev,
       [variantId]: Math.max(0, numValue) // Ensure non-negative
-    }));
-  };
-
-  const handleStockIncrement = (variantId: string) => {
-    setStockUpdates(prev => ({
-      ...prev,
-      [variantId]: (prev[variantId] || 0) + 1
-    }));
-  };
-
-  const handleStockDecrement = (variantId: string) => {
-    setStockUpdates(prev => ({
-      ...prev,
-      [variantId]: Math.max(0, (prev[variantId] || 0) - 1)
     }));
   };
 
@@ -378,14 +360,7 @@ export function RetailSalesModal({ isOpen, onClose }: RetailSalesModalProps) {
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-6xl max-h-[95vh] overflow-y-auto backdrop-blur-2xl dark:bg-gray-900/95 bg-white/95 dark:border-white/20 border-gray-200 rounded-3xl shadow-2xl">
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 p-2 rounded-xl dark:bg-white/10 bg-gray-100 dark:hover:bg-white/20 hover:bg-gray-200 transition-all duration-300 z-50"
-        >
-          <X className="h-5 w-5 dark:text-white text-gray-800" />
-        </button>
-
-        <DialogHeader className="pr-10">
+        <DialogHeader>
           <DialogTitle className="text-2xl font-bold dark:text-white text-gray-900">
             Retail Sales Management
           </DialogTitle>
@@ -495,7 +470,7 @@ export function RetailSalesModal({ isOpen, onClose }: RetailSalesModalProps) {
                   >
                     <div className="grid grid-cols-12 gap-4 items-center">
                       {/* Product Info */}
-                      <div className="col-span-3">
+                      <div className="col-span-2">
                         <h5 className="font-semibold dark:text-white text-gray-900">
                           {item.productName}
                         </h5>
@@ -533,8 +508,10 @@ export function RetailSalesModal({ isOpen, onClose }: RetailSalesModalProps) {
                           className="text-center font-semibold"
                         />
                       </div>
+
+                      {/* Profit Display */}
                       <div className="col-span-2 text-center">
-                        <p className="text-xs dark:text-gray-400 text-gray-500">Profit</p>
+                        <p className="text-xs dark:text-gray-400 text-gray-500 mb-1">Profit</p>
                         <p className={`font-bold ${
                           ((priceUpdates[item._id]?.sellingPrice ?? item.sellingPrice) - 
                            (priceUpdates[item._id]?.purchasePrice ?? item.purchasePrice)) >= 0 
@@ -546,61 +523,34 @@ export function RetailSalesModal({ isOpen, onClose }: RetailSalesModalProps) {
                         </p>
                       </div>
 
-                      {/* Stock Update with Increment/Decrement */}
-                      <div className="col-span-3">
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1">
-                            <Label htmlFor={`stock-${item._id}`} className="text-xs mb-1 block">
-                              Add Stock
-                            </Label>
-                            <div className="flex items-center gap-1">
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleStockDecrement(item._id)}
-                                className="h-9 px-2"
-                              >
-                                <ChevronDown className="h-4 w-4" />
-                              </Button>
-                              <Input
-                                id={`stock-${item._id}`}
-                                type="number"
-                                min="0"
-                                value={stockUpdates[item._id] || 0}
-                                onChange={(e) => handleStockChange(item._id, e.target.value)}
-                                className="text-center h-9"
-                              />
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleStockIncrement(item._id)}
-                                className="h-9 px-2"
-                              >
-                                <ChevronUp className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                          <div className="text-center pt-5">
-                            <Plus className="h-4 w-4 dark:text-gray-400 text-gray-500" />
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-xs dark:text-gray-400 text-gray-500 mb-1">Current</p>
-                            <p className="text-center font-bold dark:text-white text-gray-900 p-2 rounded dark:bg-white/10 bg-gray-100">
-                              {item.stockQuantity || 0}
-                            </p>
-                          </div>
-                          <div className="text-center pt-5">
-                            <TrendingUp className="h-4 w-4 text-green-500" />
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-xs dark:text-gray-400 text-gray-500 mb-1">New Total</p>
-                            <p className="text-center font-bold text-green-500 p-2 rounded dark:bg-green-500/10 bg-green-50">
-                              {(item.stockQuantity || 0) + (stockUpdates[item._id] || 0)}
-                            </p>
-                          </div>
-                        </div>
+                      {/* Stock Fields */}
+                      <div className="col-span-1 text-center">
+                        <p className="text-xs dark:text-gray-400 text-gray-500 mb-1">Current</p>
+                        <p className="text-center font-bold dark:text-white text-gray-900 p-2 rounded dark:bg-white/10 bg-gray-100">
+                          {item.stockQuantity || 0}
+                        </p>
+                      </div>
+
+                      <div className="col-span-2">
+                        <Label htmlFor={`stock-${item._id}`} className="text-xs mb-1 block dark:text-gray-400 text-gray-500">
+                          Add Stock
+                        </Label>
+                        <Input
+                          id={`stock-${item._id}`}
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={stockUpdates[item._id] || 0}
+                          onChange={(e) => handleStockChange(item._id, e.target.value)}
+                          className="text-center font-semibold"
+                        />
+                      </div>
+
+                      <div className="col-span-1 text-center">
+                        <p className="text-xs dark:text-gray-400 text-gray-500 mb-1">New Total</p>
+                        <p className="text-center font-bold text-green-500 p-2 rounded dark:bg-green-500/10 bg-green-50">
+                          {(item.stockQuantity || 0) + (stockUpdates[item._id] || 0)}
+                        </p>
                       </div>
                     </div>
                   </motion.div>

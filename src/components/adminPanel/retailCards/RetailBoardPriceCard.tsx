@@ -6,8 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2, DollarSign, Edit3, CheckCircle, TrendingUp, AlertCircle, ShoppingCart } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { Loader2, CheckCircle, TrendingUp, AlertCircle, ShoppingCart } from 'lucide-react';
+import {  AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { 
   getRetailBoardPriceProducts, 

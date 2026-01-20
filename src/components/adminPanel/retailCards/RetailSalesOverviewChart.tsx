@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useState, useMemo, useCallback, memo } from 'react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Sector } from 'recharts';
+import { RadialBarChart, RadialBar, ResponsiveContainer, Tooltip, Legend, PolarAngleAxis } from 'recharts';
 import { TrendingUp, Package, X, Maximize2 } from 'lucide-react';
 
 interface RetailSalesOverviewChartProps {
@@ -21,49 +21,45 @@ const ENHANCED_COLORS = [
   '#ec4899', '#06b6d4', '#f97316', '#6366f1',
 ];
 
-const MemoizedPieChart = memo(({ 
+const MemoizedRadialChart = memo(({ 
   dataWithPercentage, 
-  isEnlarged, 
-  activeIndex,
-  onMouseEnter,
-  onMouseLeave,
-  renderActiveShape
+  isEnlarged
 }: any) => {
   return (
-    <ResponsiveContainer width="100%" height={isEnlarged ? 400 : 280}>
-      <PieChart>
-        <Pie
-          data={dataWithPercentage}
-          cx="50%"
-          cy="50%"
-          labelLine={false}
-          outerRadius={isEnlarged ? 140 : 100}
-          innerRadius={isEnlarged ? 90 : 60}
-          fill="#8884d8"
-          dataKey="totalSales"
-          activeIndex={activeIndex !== null ? activeIndex : undefined}
-          activeShape={renderActiveShape}
-          onMouseEnter={onMouseEnter}
-          onMouseLeave={onMouseLeave}
-          animationBegin={0}
-          animationDuration={800}
-          isAnimationActive={false}
-        >
-          {dataWithPercentage.map((entry: any, index: number) => (
-            <Cell key={`cell-${index}`} fill={entry.fill} />
-          ))}
-        </Pie>
+    <ResponsiveContainer width="100%" height={isEnlarged ? 500 : 350}>
+      <RadialBarChart 
+        cx="50%" 
+        cy="50%" 
+        innerRadius={isEnlarged ? "15%" : "20%"} 
+        outerRadius={isEnlarged ? "95%" : "90%"} 
+        data={dataWithPercentage}
+        startAngle={90}
+        endAngle={-270}
+      >
+        <PolarAngleAxis type="number" domain={[0, 100]} angleAxisId={0} tick={false} />
+        <RadialBar
+          background
+          dataKey="percentage"
+          cornerRadius={10}
+        />
         <Tooltip content={<CustomTooltip />} />
-      </PieChart>
+        <Legend 
+          iconSize={12}
+          layout="vertical"
+          verticalAlign="middle"
+          align={isEnlarged ? "right" : "center"}
+          wrapperStyle={isEnlarged ? { right: 0 } : { bottom: -20 }}
+          content={<CustomLegend />}
+        />
+      </RadialBarChart>
     </ResponsiveContainer>
   );
 });
 
-MemoizedPieChart.displayName = 'MemoizedPieChart';
+MemoizedRadialChart.displayName = 'MemoizedRadialChart';
 
 export function RetailSalesOverviewChart({ data }: RetailSalesOverviewChartProps) {
   const [isEnlarged, setIsEnlarged] = useState(false);
-  const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
   const filteredData = useMemo(() => {
@@ -78,19 +74,15 @@ export function RetailSalesOverviewChart({ data }: RetailSalesOverviewChartProps
   }, [filteredData]);
 
   const dataWithPercentage = useMemo(() => {
-    return filteredData.map(item => ({
-      ...item,
-      percentage: ((item.totalSales / totalInvoiceCount) * 100).toFixed(1)
-    }));
+    return filteredData.map((item, index) => ({
+      name: item.productName,
+      productName: item.productName,
+      totalSales: item.totalSales,
+      percentage: parseFloat(((item.totalSales / totalInvoiceCount) * 100).toFixed(1)),
+      fill: item.fill,
+      index: index
+    })).sort((a, b) => b.percentage - a.percentage); // Sort by percentage descending
   }, [filteredData, totalInvoiceCount]);
-
-  const handlePieMouseEnter = useCallback((_: any, index: number) => {
-    setActiveIndex(index);
-  }, []);
-
-  const handlePieMouseLeave = useCallback(() => {
-    setActiveIndex(null);
-  }, []);
 
   const handleLegendMouseEnter = useCallback((index: number) => {
     setHoveredIndex(index);
@@ -100,110 +92,70 @@ export function RetailSalesOverviewChart({ data }: RetailSalesOverviewChartProps
     setHoveredIndex(null);
   }, []);
 
-  const renderActiveShape = useCallback((props: any) => {
-    const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill } = props;
-    
-    return (
-      <g>
-        <Sector
-          cx={cx}
-          cy={cy}
-          innerRadius={innerRadius}
-          outerRadius={outerRadius + 10}
-          startAngle={startAngle}
-          endAngle={endAngle}
-          fill={fill}
-        />
-        <Sector
-          cx={cx}
-          cy={cy}
-          innerRadius={outerRadius + 12}
-          outerRadius={outerRadius + 16}
-          startAngle={startAngle}
-          endAngle={endAngle}
-          fill={fill}
-          opacity={0.3}
-        />
-      </g>
-    );
-  }, []);
-
-  const renderLegend = useCallback((payload: any[]) => {
-    return (
-      <div className="grid grid-cols-1 gap-2 mt-4">
-        {payload.map((entry: any, index: number) => (
-          <div
-            key={`legend-${index}`}
-            onMouseEnter={() => handleLegendMouseEnter(index)}
-            onMouseLeave={handleLegendMouseLeave}
-            className={`flex items-center justify-between p-3 rounded-xl transition-all duration-300 cursor-pointer ${
-              hoveredIndex === index 
-                ? 'dark:bg-white/10 bg-gray-100 scale-105' 
-                : 'dark:bg-white/5 bg-gray-50'
-            }`}
-          >
-            <div className="flex items-center gap-3 flex-1">
-              <div
-                className="w-4 h-4 rounded-full transition-transform"
-                style={{ 
-                  backgroundColor: entry.color,
-                  transform: hoveredIndex === index ? 'scale(1.2)' : 'scale(1)'
-                }}
-              />
-              <span className="text-sm font-medium dark:text-gray-200 text-gray-700 truncate">
-                {entry.value}
-              </span>
+  const ChartContent = useCallback(({ isEnlarged = false }: { isEnlarged?: boolean }) => (
+    <div className="flex flex-col items-center">
+      <div className="w-full relative">
+        {!isEnlarged && (
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none z-10">
+            <div className="mb-1">
+              <Package className="h-8 w-8 mx-auto dark:text-purple-400 text-purple-500" />
             </div>
-            <div className="text-right">
-              <span className="text-sm font-bold dark:text-white text-gray-900">
-                {dataWithPercentage[index]?.totalSales.toLocaleString()}
-              </span>
-              <span className="text-xs dark:text-gray-400 text-gray-500 ml-2">
-                ({dataWithPercentage[index]?.percentage}%)
-              </span>
+            <div className="text-3xl font-bold dark:text-white text-gray-900">
+              {totalInvoiceCount.toLocaleString()}
+            </div>
+            <div className="text-xs dark:text-gray-400 text-gray-500 uppercase tracking-wider">
+              Retail Items
             </div>
           </div>
-        ))}
-      </div>
-    );
-  }, [dataWithPercentage, hoveredIndex, handleLegendMouseEnter, handleLegendMouseLeave]);
-
-  const ChartContent = useCallback(({ isEnlarged = false }: { isEnlarged?: boolean }) => (
-    <div className="flex flex-col lg:flex-row gap-6 items-center">
-      <div className={`${isEnlarged ? 'lg:w-2/3' : 'w-full'} relative`}>
-        <MemoizedPieChart
+        )}
+        
+        <MemoizedRadialChart
           dataWithPercentage={dataWithPercentage}
           isEnlarged={isEnlarged}
-          activeIndex={activeIndex}
-          onMouseEnter={handlePieMouseEnter}
-          onMouseLeave={handlePieMouseLeave}
-          renderActiveShape={renderActiveShape}
         />
-
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
-          <div className="mb-1">
-            <Package className="h-8 w-8 mx-auto dark:text-white text-gray-900" />
-          </div>
-          <div className="text-3xl font-bold dark:text-white text-gray-900">
-            {totalInvoiceCount.toLocaleString()}
-          </div>
-          <div className="text-xs dark:text-gray-400 text-gray-500 uppercase tracking-wider">
-            Retail Items
-          </div>
-        </div>
       </div>
 
       {isEnlarged && (
-        <div className="lg:w-1/3 w-full max-h-96 overflow-y-auto custom-scrollbar">
-          {renderLegend(dataWithPercentage.map((item) => ({
-            value: item.productName,
-            color: item.fill,
-            type: 'square'
-          })))}
+        <div className="w-full mt-6 max-h-96 overflow-y-auto custom-scrollbar">
+          <div className="grid grid-cols-1 gap-2">
+            {dataWithPercentage.map((entry: any, index: number) => (
+              <div
+                key={`legend-item-${index}`}
+                onMouseEnter={() => handleLegendMouseEnter(index)}
+                onMouseLeave={handleLegendMouseLeave}
+                className={`flex items-center justify-between p-3 rounded-xl transition-all duration-300 cursor-pointer ${
+                  hoveredIndex === index 
+                    ? 'dark:bg-white/10 bg-gray-100 scale-105' 
+                    : 'dark:bg-white/5 bg-gray-50'
+                }`}
+              >
+                <div className="flex items-center gap-3 flex-1">
+                  <div
+                    className="w-4 h-4 rounded-full transition-transform"
+                    style={{ 
+                      backgroundColor: entry.fill,
+                      transform: hoveredIndex === index ? 'scale(1.2)' : 'scale(1)'
+                    }}
+                  />
+                  <span className="text-sm font-medium dark:text-gray-200 text-gray-700 truncate">
+                    {entry.productName}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="text-sm font-bold dark:text-white text-gray-900">
+                    {entry.totalSales.toLocaleString()}
+                  </span>
+                  <span className="text-xs dark:text-gray-400 text-gray-500 ml-2">
+                    ({entry.percentage}%)
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
-  ), [dataWithPercentage, activeIndex, handlePieMouseEnter, handlePieMouseLeave, renderActiveShape, totalInvoiceCount, renderLegend]);
+  ), [dataWithPercentage, totalInvoiceCount, hoveredIndex, handleLegendMouseEnter, handleLegendMouseLeave]);
 
   return (
     <>
@@ -277,7 +229,7 @@ export function RetailSalesOverviewChart({ data }: RetailSalesOverviewChartProps
       <AnimatePresence>
         {isEnlarged && (
           <Dialog open={isEnlarged} onOpenChange={setIsEnlarged}>
-            <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto backdrop-blur-2xl dark:bg-gray-900/95 bg-white/95 dark:border-white/20 border-gray-200 rounded-3xl shadow-2xl">
+            <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-y-auto backdrop-blur-2xl dark:bg-gray-900/95 bg-white/95 dark:border-white/20 border-gray-200 rounded-3xl shadow-2xl">
               <button
                 onClick={() => setIsEnlarged(false)}
                 className="absolute top-4 right-4 p-2 rounded-xl dark:bg-white/10 bg-gray-100 dark:hover:bg-white/20 hover:bg-gray-200 transition-all duration-300 z-50"
@@ -331,7 +283,7 @@ const CustomTooltip = ({ active, payload }: any) => {
         </p>
         <div className="space-y-1">
           <p className="text-sm dark:text-gray-300 text-gray-600">
-            Sales: <span className="font-bold dark:text-white text-gray-900">{payload[0].value.toLocaleString()}</span>
+            Sales: <span className="font-bold dark:text-white text-gray-900">{payload[0].payload.totalSales.toLocaleString()}</span>
           </p>
           <p className="text-sm dark:text-gray-300 text-gray-600">
             Share: <span className="font-bold" style={{ color: payload[0].payload.fill }}>
@@ -343,4 +295,27 @@ const CustomTooltip = ({ active, payload }: any) => {
     );
   }
   return null;
+};
+
+const CustomLegend = ({ payload }: any) => {
+  if (!payload || payload.length === 0) return null;
+  
+  return (
+    <div className="flex flex-wrap justify-center gap-2 mt-4 px-4">
+      {payload.slice(0, 5).map((entry: any, index: number) => (
+        <div
+          key={`legend-${index}`}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg dark:bg-white/5 bg-gray-100"
+        >
+          <div
+            className="w-3 h-3 rounded-full shrink-0"
+            style={{ backgroundColor: entry.color }}
+          />
+          <span className="text-xs font-medium dark:text-gray-200 text-gray-700 whitespace-nowrap">
+            {entry.value}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
 };

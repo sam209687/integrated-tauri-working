@@ -5,7 +5,6 @@ import { useEffect, useState } from 'react';
 import { useRetailStore } from '@/store/retailStore';
 import { RetailSalesMetrics } from '@/components/adminPanel/retailCards/RetailSalesMetrics';
 import { RetailSalesOverviewChart } from '@/components/adminPanel/retailCards/RetailSalesOverviewChart';
-import { RetailBoardPriceCard } from '@/components/adminPanel/retailCards/RetailBoardPriceCard';
 import { RetailSalesModal } from '@/components/adminPanel/retailCards/RetailSalesModal';
 import { motion } from 'framer-motion';
 import { Loader2, ShoppingCart } from 'lucide-react';
@@ -101,30 +100,24 @@ export function RetailSalesContainer({ fromDate, toDate }: RetailSalesContainerP
           totalProfit={metrics.totalProfit}
           totalDeposits={metrics.totalDeposits}
           depositableCharges={
-            metrics.depositableCharges?.packingCharges || 0 +
-            metrics.depositableCharges?.laborCharges || 0 +
-            metrics.depositableCharges?.electricityCharges || 0 +
-            metrics.depositableCharges?.oecCharges || 0
+            (metrics.depositableCharges?.packingCharges || 0) +
+            (metrics.depositableCharges?.laborCharges || 0) +
+            (metrics.depositableCharges?.electricityCharges || 0) +
+            (metrics.depositableCharges?.oecCharges || 0)
           }
           onRetailSalesClick={() => setIsModalOpen(true)}
         />
       )}
 
-      {/* 50/50 Split - Chart + Board Price */}
+      {/* Sales Chart - Full Width */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.3 }}
-        className="grid grid-cols-1 lg:grid-cols-2 gap-4"
+        className="grid grid-cols-1 gap-4"
       >
-        {/* Left: Sales Chart (50%) */}
         <div className="h-full">
           <RetailSalesOverviewChart data={salesData} />
-        </div>
-
-        {/* Right: Board Price Card (50%) */}
-        <div className="h-full">
-          <RetailBoardPriceCard />
         </div>
       </motion.div>
 
